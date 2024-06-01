@@ -1,6 +1,6 @@
 mod schedules;
 
-use crate::render_state::RenderState;
+use crate::render_state::{CommandEncoderResource, RenderState, SurfaceTextureResource};
 use bevy_ecs::prelude::{Schedule, World};
 use std::sync::Arc;
 use winit::event::{Event, WindowEvent};
@@ -23,7 +23,35 @@ fn create_render_init_schedule() -> Schedule {
 fn create_render_update_schedule() -> Schedule {
     let mut schedule = Schedule::new(schedules::RenderUpdateSchedule);
 
-    schedule.add_systems(|| log::info!("Running render update schedule"));
+    use bevy_ecs::prelude::*;
+    fn clear(mut encoder: ResMut<CommandEncoderResource>, output: Res<SurfaceTextureResource>) {
+        let view = output
+            .0
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let render_pass = encoder.0.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.1,
+                        g: 0.2,
+                        b: 0.3,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
+    }
+
+    schedule.add_systems(clear);
 
     schedule
 }
@@ -58,23 +86,30 @@ pub async fn run() {
                     // We want another frame after this one
                     world.resource::<RenderState>().window.request_redraw();
 
+                    // Initialize data needed for the next frame, handle possible errors
+                    match crate::render_state::begin_frame(&mut world) {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                            // Reconfigure the surface
+                            let mut render_state = world.resource_mut::<RenderState>();
+
+                            let size = render_state.size;
+                            render_state.resize(size);
+                        }
+                        Err(wgpu::SurfaceError::Timeout) => {
+                            log::warn!("Surface timeout");
+                        }
+                        Err(wgpu::SurfaceError::OutOfMemory) => {
+                            log::error!("Out of memory, exiting");
+                            control_flow.exit();
+                        }
+                    }
+
                     // Run every system in the render update schedule
                     render_update_schedule.run(&mut world);
 
-                    // match render_state.render() {
-                    //     Ok(_) => {}
-                    //     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                    //         let size = render_state.size;
-                    //         render_state.resize(size);
-                    //     }
-                    //     Err(wgpu::SurfaceError::Timeout) => {
-                    //         log::warn!("Surface timeout");
-                    //     }
-                    //     Err(wgpu::SurfaceError::OutOfMemory) => {
-                    //         log::error!("Out of memory, exiting");
-                    //         control_flow.exit();
-                    //     }
-                    // }
+                    // Clean up data from the frame we just finished
+                    crate::render_state::finish_frame(&mut world);
                 }
                 _ => {}
             },
