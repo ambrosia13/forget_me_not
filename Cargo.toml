@@ -1,0 +1,12 @@
+[package]
+name = "forget_me_not"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy_ecs = "0.13.2"
+wgpu = "0.20.0"
+winit = { version = "0.29.0", features = ["rwh_05"] }
+log = "0.4.21"
+env_logger = "0.11.3"
+pollster = "0.3.0"
