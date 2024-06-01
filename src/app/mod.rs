@@ -30,7 +30,7 @@ fn create_render_update_schedule() -> Schedule {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let render_pass = encoder.0.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let _render_pass = encoder.0.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,

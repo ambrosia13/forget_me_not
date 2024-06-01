@@ -91,7 +91,8 @@ impl RenderState {
         }
     }
 
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
+    #[allow(unused)]
+    pub fn input(&mut self, _event: &WindowEvent) -> bool {
         false
     }
 }
