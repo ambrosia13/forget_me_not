@@ -1,5 +1,6 @@
 use bevy_ecs::system::Resource;
 use bevy_ecs::world::World;
+use derived_deref::{Deref, DerefMut};
 use std::sync::Arc;
 use winit::event::WindowEvent;
 use winit::window::Window;
@@ -126,8 +127,8 @@ pub fn finish_frame(world: &mut World) {
     surface_texture.present();
 }
 
-#[derive(Resource)]
+#[derive(Resource, Deref, DerefMut)]
 pub struct CommandEncoderResource(pub wgpu::CommandEncoder);
 
-#[derive(Resource)]
+#[derive(Resource, Deref, DerefMut)]
 pub struct SurfaceTextureResource(pub wgpu::SurfaceTexture);

@@ -1,4 +1,8 @@
-mod schedules;
+mod block;
+mod chunk;
+mod schedule;
+mod vertex;
+mod world_renderer;
 
 use crate::render_state::{CommandEncoderResource, RenderState, SurfaceTextureResource};
 use bevy_ecs::prelude::{Schedule, World};
@@ -16,52 +20,12 @@ fn init_window() -> (EventLoop<()>, Arc<Window>) {
     (event_loop, window)
 }
 
-fn create_render_init_schedule() -> Schedule {
-    Schedule::new(schedules::RenderInitSchedule)
-}
-
-fn create_render_update_schedule() -> Schedule {
-    let mut schedule = Schedule::new(schedules::RenderUpdateSchedule);
-
-    use bevy_ecs::prelude::*;
-    fn clear(mut encoder: ResMut<CommandEncoderResource>, output: Res<SurfaceTextureResource>) {
-        let view = output
-            .0
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let _render_pass = encoder.0.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
-                        a: 1.0,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
-        });
-    }
-
-    schedule.add_systems(clear);
-
-    schedule
-}
-
 pub async fn run() {
     let (event_loop, window) = init_window();
 
     let mut world = World::new();
-    let mut render_update_schedule = create_render_update_schedule();
-    let mut render_init_schedule = create_render_init_schedule();
+    let mut render_update_schedule = schedule::create_render_update_schedule();
+    let mut render_init_schedule = schedule::create_render_init_schedule();
 
     let render_state = RenderState::new(window.clone()).await;
     world.insert_resource(render_state);
