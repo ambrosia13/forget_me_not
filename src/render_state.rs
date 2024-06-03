@@ -1,3 +1,4 @@
+use bevy_ecs::prelude::Event;
 use bevy_ecs::system::Resource;
 use bevy_ecs::world::World;
 use derived_deref::{Deref, DerefMut};
@@ -132,3 +133,6 @@ pub struct CommandEncoderResource(pub wgpu::CommandEncoder);
 
 #[derive(Resource, Deref, DerefMut)]
 pub struct SurfaceTextureResource(pub wgpu::SurfaceTexture);
+
+#[derive(Event, Deref, DerefMut)]
+pub struct ResizeEvent(pub winit::dpi::PhysicalSize<u32>);

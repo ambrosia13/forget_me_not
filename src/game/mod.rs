@@ -1,10 +1,15 @@
-mod block;
-mod chunk;
-mod schedule;
-mod vertex;
-mod world_renderer;
+pub mod block;
+pub mod chunk;
+pub mod event;
+pub mod render;
+pub mod schedule;
+pub mod texture;
+pub mod vertex;
 
-use crate::render_state::{CommandEncoderResource, RenderState, SurfaceTextureResource};
+use crate::render_state::{
+    CommandEncoderResource, RenderState, ResizeEvent, SurfaceTextureResource,
+};
+use bevy_ecs::event::Events;
 use bevy_ecs::prelude::{Schedule, World};
 use std::sync::Arc;
 use winit::event::{Event, WindowEvent};
@@ -20,10 +25,17 @@ fn init_window() -> (EventLoop<()>, Arc<Window>) {
     (event_loop, window)
 }
 
+fn init_world() -> World {
+    let mut world = World::new();
+    world.insert_resource(Events::<ResizeEvent>::default());
+
+    world
+}
+
 pub async fn run() {
     let (event_loop, window) = init_window();
+    let mut world = init_world();
 
-    let mut world = World::new();
     let mut render_update_schedule = schedule::create_render_update_schedule();
     let mut render_init_schedule = schedule::create_render_init_schedule();
 
@@ -45,6 +57,9 @@ pub async fn run() {
                 WindowEvent::Resized(size) => {
                     // Update the render state with the new size
                     world.resource_mut::<RenderState>().resize(*size);
+
+                    // Send an event so all other systems can resize accordingly
+                    world.send_event(ResizeEvent(*size));
                 }
                 WindowEvent::RedrawRequested => {
                     // We want another frame after this one

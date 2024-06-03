@@ -1,14 +1,15 @@
 use crate::game::vertex;
-use crate::render_state::{CommandEncoderResource, RenderState, SurfaceTextureResource};
+use crate::render_state::{CommandEncoderResource, RenderState, ResizeEvent};
 use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
-use wgpu::{TextureDimension, TextureFormat};
+use wgpu::TextureDimension;
 
 #[derive(Resource)]
 pub struct SolidTerrainRenderContext {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
-    pub texture: wgpu::Texture,
+    pub color_texture: wgpu::Texture,
+    pub depth_texture: wgpu::Texture,
     pub pipeline: wgpu::RenderPipeline,
 }
 
@@ -32,12 +33,15 @@ impl SolidTerrainRenderContext {
                     usage: wgpu::BufferUsages::INDEX,
                 });
 
+        let color_texture_format = wgpu::TextureFormat::Rgba8Unorm;
+        let depth_texture_format = wgpu::TextureFormat::Depth32Float;
+
         // Currently unused, because for debugging purposes, the world renderer just draws directly
         // to the screen right now.
-        let texture = render_state
+        let color_texture = render_state
             .device
             .create_texture(&wgpu::TextureDescriptor {
-                label: Some("Solid Terrain Texture"),
+                label: Some("Solid Terrain Color Texture"),
                 size: wgpu::Extent3d {
                     width: render_state.size.width,
                     height: render_state.size.height,
@@ -46,14 +50,33 @@ impl SolidTerrainRenderContext {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: TextureDimension::D2,
-                format: TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                format: color_texture_format,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+
+        let depth_texture = render_state
+            .device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("Solid Terrain Depth Texture"),
+                size: wgpu::Extent3d {
+                    width: render_state.size.width,
+                    height: render_state.size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: depth_texture_format,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             });
 
         let shader = render_state
             .device
-            .create_shader_module(wgpu::include_wgsl!("solid_terrain.wgsl"));
+            .create_shader_module(wgpu::include_wgsl!("shaders/solid_terrain.wgsl"));
 
         let pipeline_layout =
             render_state
@@ -85,7 +108,13 @@ impl SolidTerrainRenderContext {
                         unclipped_depth: false,
                         conservative: false,
                     },
-                    depth_stencil: None,
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: depth_texture_format,
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
                     multisample: wgpu::MultisampleState {
                         count: 1,
                         mask: !0,
@@ -96,12 +125,7 @@ impl SolidTerrainRenderContext {
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: render_state
-                                .surface
-                                .get_current_texture()
-                                .unwrap()
-                                .texture
-                                .format(),
+                            format: color_texture_format,
                             blend: Some(wgpu::BlendState::REPLACE),
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
@@ -112,25 +136,44 @@ impl SolidTerrainRenderContext {
         Self {
             vertex_buffer,
             index_buffer,
-            texture,
+            color_texture,
+            depth_texture,
             pipeline,
         }
     }
 
-    pub fn draw(&self, surface_texture: &wgpu::SurfaceTexture, encoder: &mut wgpu::CommandEncoder) {
-        let view = surface_texture.texture.create_view(&Default::default());
+    pub fn resize(&mut self, render_state: &RenderState) {
+        *self = Self::new(render_state);
+        log::info!("Solid terrain render context resized");
+    }
+
+    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder) {
+        let color_texture_view = self
+            .color_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let depth_texture_view = self
+            .depth_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Solid Terrain Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
+                view: &color_texture_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &depth_texture_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
             occlusion_query_set: None,
             timestamp_writes: None,
         });
@@ -149,9 +192,15 @@ pub fn init_solid_terrain_renderer(mut commands: Commands, render_state: Res<Ren
 }
 
 pub fn draw_solid_terrain(
-    render_context: Res<SolidTerrainRenderContext>,
-    surface_texture_resource: Res<SurfaceTextureResource>,
+    render_state: Res<RenderState>,
+    mut render_context: ResMut<SolidTerrainRenderContext>,
     mut command_encoder_resource: ResMut<CommandEncoderResource>,
+    mut resize_events: EventReader<ResizeEvent>,
 ) {
-    render_context.draw(&surface_texture_resource, &mut command_encoder_resource);
+    for _ in resize_events.read() {
+        // Reconfigure the render context when the screen is resized
+        render_context.resize(&render_state);
+    }
+
+    render_context.draw(&mut command_encoder_resource);
 }
