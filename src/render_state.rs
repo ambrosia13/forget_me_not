@@ -1,9 +1,9 @@
-use crate::game::event;
+use std::sync::Arc;
+
 use bevy_ecs::prelude::Event;
 use bevy_ecs::system::Resource;
 use bevy_ecs::world::World;
 use derived_deref::{Deref, DerefMut};
-use std::sync::Arc;
 use winit::event::WindowEvent;
 use winit::window::Window;
 

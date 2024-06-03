@@ -1,20 +1,14 @@
-pub mod block;
-pub mod chunk;
 pub mod event;
 mod input;
 pub mod render;
 pub mod schedule;
-pub mod texture;
 pub mod vertex;
 
 use crate::game::input::MouseMotion;
-use crate::render_state::{
-    CommandEncoderResource, RenderState, SurfaceTextureResource, WindowResizeEvent,
-};
-use bevy_ecs::event::Events;
-use bevy_ecs::prelude::{Schedule, World};
+use crate::render_state::{RenderState, WindowResizeEvent};
+use bevy_ecs::prelude::World;
 use std::sync::Arc;
-use winit::event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent};
+use winit::event::{DeviceEvent, Event, WindowEvent};
 use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
 
