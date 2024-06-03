@@ -1,13 +1,44 @@
-use crate::game::{event, render, schedule};
-use crate::render_state::{CommandEncoderResource, ResizeEvent, SurfaceTextureResource};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
+
+use crate::game::{event, input, render};
+use crate::render_state;
+
+#[derive(ScheduleLabel, Eq, PartialEq, Copy, Clone, Hash, Debug)]
+pub struct EventInitSchedule;
+
+#[derive(ScheduleLabel, Eq, PartialEq, Copy, Clone, Hash, Debug)]
+pub struct EventUpdateSchedule;
 
 #[derive(ScheduleLabel, Eq, PartialEq, Copy, Clone, Hash, Debug)]
 pub struct RenderInitSchedule;
 
 #[derive(ScheduleLabel, Eq, PartialEq, Copy, Clone, Hash, Debug)]
 pub struct RenderUpdateSchedule;
+
+pub fn create_event_init_schedule() -> Schedule {
+    let mut schedule = Schedule::new(EventInitSchedule);
+
+    schedule.add_systems((
+        event::init_event::<input::KeyboardInputEvent>,
+        event::init_event::<input::MouseInputEvent>,
+        event::init_event::<render_state::WindowResizeEvent>,
+    ));
+
+    schedule
+}
+
+pub fn create_event_update_schedule() -> Schedule {
+    let mut schedule = Schedule::new(EventUpdateSchedule);
+
+    schedule.add_systems((
+        event::clear_events::<input::KeyboardInputEvent>,
+        event::clear_events::<input::MouseInputEvent>,
+        event::clear_events::<render_state::WindowResizeEvent>,
+    ));
+
+    schedule
+}
 
 pub fn create_render_init_schedule() -> Schedule {
     let mut schedule = Schedule::new(RenderInitSchedule);
@@ -33,9 +64,6 @@ pub fn create_render_update_schedule() -> Schedule {
         )
             .chain(),
     );
-
-    // To clean up events
-    schedule.add_systems(event::cleanup_events::<ResizeEvent>);
 
     schedule
 }

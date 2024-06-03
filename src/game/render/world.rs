@@ -1,5 +1,5 @@
 use crate::game::vertex;
-use crate::render_state::{CommandEncoderResource, RenderState, ResizeEvent};
+use crate::render_state::{CommandEncoderResource, RenderState, WindowResizeEvent};
 use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
 use wgpu::TextureDimension;
@@ -195,7 +195,7 @@ pub fn draw_solid_terrain(
     render_state: Res<RenderState>,
     mut render_context: ResMut<SolidTerrainRenderContext>,
     mut command_encoder_resource: ResMut<CommandEncoderResource>,
-    mut resize_events: EventReader<ResizeEvent>,
+    mut resize_events: EventReader<WindowResizeEvent>,
 ) {
     for _ in resize_events.read() {
         // Reconfigure the render context when the screen is resized

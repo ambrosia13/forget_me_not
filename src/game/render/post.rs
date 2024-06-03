@@ -1,7 +1,7 @@
 use crate::game::render::world::SolidTerrainRenderContext;
 use crate::game::vertex;
 use crate::render_state::{
-    CommandEncoderResource, RenderState, ResizeEvent, SurfaceTextureResource,
+    CommandEncoderResource, RenderState, SurfaceTextureResource, WindowResizeEvent,
 };
 use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
@@ -253,7 +253,7 @@ pub fn draw_post_passes(
     fullscreen_quad: Res<FullscreenQuad>,
     solid_terrain_render_context: Res<SolidTerrainRenderContext>,
     mut command_encoder_resource: ResMut<CommandEncoderResource>,
-    mut resize_events: EventReader<ResizeEvent>,
+    mut resize_events: EventReader<WindowResizeEvent>,
 ) {
     for _ in resize_events.read() {
         final_render_context.resize(
