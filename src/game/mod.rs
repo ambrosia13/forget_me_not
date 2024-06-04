@@ -33,10 +33,14 @@ pub async fn run() {
     let (event_loop, window) = init_window();
     let mut world = init_world();
 
+    let mut startup_schedule = schedule::create_startup_schedule();
+    let mut update_schedule = schedule::create_update_schedule();
     let mut event_init_schedule = schedule::create_event_init_schedule();
     let mut event_update_schedule = schedule::create_event_update_schedule();
     let mut render_init_schedule = schedule::create_render_init_schedule();
     let mut render_update_schedule = schedule::create_render_update_schedule();
+    let mut pre_frame_schedule = schedule::create_pre_frame_schedule();
+    let mut post_frame_schedule = schedule::create_post_frame_schedule();
 
     let render_state = RenderState::new(window.clone()).await;
     world.insert_resource(render_state);
@@ -46,6 +50,9 @@ pub async fn run() {
 
     // Initialize all event types
     event_init_schedule.run(&mut world);
+
+    // Run all startup systems
+    startup_schedule.run(&mut world);
 
     event_loop
         .run(move |event, control_flow| match event {
@@ -101,6 +108,10 @@ pub async fn run() {
                         // We want another frame after this one
                         world.resource::<RenderState>().window.request_redraw();
 
+                        // Run pre-frame systems that need to run before any logic
+                        // for the current frame is run.
+                        pre_frame_schedule.run(&mut world);
+
                         // Initialize data needed for the next frame, handle possible errors
                         match crate::render_state::begin_frame(&mut world) {
                             Ok(_) => {}
@@ -123,11 +134,18 @@ pub async fn run() {
                         // Run every system in the render update schedule
                         render_update_schedule.run(&mut world);
 
+                        // Run all update systems
+                        update_schedule.run(&mut world);
+
                         // Clear events so they don't pile up
                         event_update_schedule.run(&mut world);
 
                         // Clean up data from the frame we just finished
                         crate::render_state::finish_frame(&mut world);
+
+                        // Run post-frame systems, that expect that all work for this frame has finished,
+                        // so we can clean up some state.
+                        post_frame_schedule.run(&mut world);
                     }
                     _ => {}
                 }
