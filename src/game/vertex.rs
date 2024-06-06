@@ -42,19 +42,19 @@ impl FrameVertex {
     pub const VERTICES: &'static [FrameVertex] = &[
         FrameVertex {
             position: Vec2::new(-1.0, -1.0),
-            uv: Vec2::new(0.0, 0.0),
+            uv: Vec2::new(0.0, 1.0),
         },
         FrameVertex {
             position: Vec2::new(1.0, -1.0),
-            uv: Vec2::new(1.0, 0.0),
-        },
-        FrameVertex {
-            position: Vec2::new(1.0, 1.0),
             uv: Vec2::new(1.0, 1.0),
         },
         FrameVertex {
+            position: Vec2::new(1.0, 1.0),
+            uv: Vec2::new(1.0, 0.0),
+        },
+        FrameVertex {
             position: Vec2::new(-1.0, 1.0),
-            uv: Vec2::new(0.0, 1.0),
+            uv: Vec2::new(0.0, 0.0),
         },
     ];
 
