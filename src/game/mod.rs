@@ -1,3 +1,4 @@
+mod camera;
 pub mod event;
 mod input;
 pub mod render;
