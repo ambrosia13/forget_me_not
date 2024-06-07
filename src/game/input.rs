@@ -5,14 +5,14 @@ use std::hash::Hash;
 use winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-pub fn init(world: &mut World) {
-    world.insert_resource(MouseMotion {
+pub fn init(mut commands: Commands) {
+    commands.insert_resource(MouseMotion {
         delta_x: 0.0,
         delta_y: 0.0,
     });
 
-    world.insert_resource(KeyboardInput(Input::new()));
-    world.insert_resource(MouseInput(Input::new()));
+    commands.insert_resource(KeyboardInput(Input::new()));
+    commands.insert_resource(MouseInput(Input::new()));
 }
 
 #[derive(Event)]
