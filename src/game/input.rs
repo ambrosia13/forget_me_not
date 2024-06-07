@@ -29,17 +29,43 @@ pub struct MouseInputEvent {
     pub button: MouseButton,
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct MouseMotion {
     pub delta_x: f64,
     pub delta_y: f64,
 }
 
+impl MouseMotion {
+    pub fn init(mut commands: Commands) {
+        commands.insert_resource(MouseMotion::default());
+    }
+}
+
 #[derive(Resource, Deref, DerefMut)]
 pub struct KeyboardInput(Input<KeyCode>);
 
+impl KeyboardInput {
+    pub fn init(mut commands: Commands) {
+        commands.insert_resource(KeyboardInput(Input::new()));
+    }
+
+    pub fn update(mut keyboard_input: ResMut<KeyboardInput>) {
+        keyboard_input.tick();
+    }
+}
+
 #[derive(Resource, Deref, DerefMut)]
 pub struct MouseInput(Input<MouseButton>);
+
+impl MouseInput {
+    pub fn init(mut commands: Commands) {
+        commands.insert_resource(MouseInput(Input::new()));
+    }
+
+    pub fn update(mut mouse_input: ResMut<MouseInput>) {
+        mouse_input.tick();
+    }
+}
 
 // Input struct referenced from Bevy, MIT license
 #[derive(Default)]

@@ -43,6 +43,11 @@ impl FullscreenQuad {
             vertex_shader_module,
         }
     }
+
+    pub fn init(mut commands: Commands, render_state: Res<RenderState>) {
+        let fullscreen_quad = FullscreenQuad::new(&render_state);
+        commands.insert_resource(fullscreen_quad);
+    }
 }
 
 #[derive(Resource)]
@@ -225,6 +230,47 @@ impl FinalRenderContext {
         );
 
         render_pass.draw_indexed(0..vertex::FrameVertex::INDICES.len() as u32, 0, 0..1);
+    }
+
+    pub fn init(
+        mut commands: Commands,
+        render_state: Res<RenderState>,
+        solid_terrain_render_context: Res<SolidTerrainRenderContext>,
+        fullscreen_quad: Res<FullscreenQuad>,
+    ) {
+        let final_render_context = FinalRenderContext::new(
+            &render_state,
+            &render_state.surface.get_current_texture().unwrap(),
+            &fullscreen_quad,
+            &solid_terrain_render_context.color_texture,
+        );
+
+        commands.insert_resource(final_render_context);
+    }
+
+    pub fn update(
+        render_state: Res<RenderState>,
+        mut final_render_context: ResMut<FinalRenderContext>,
+        surface_texture_resource: Res<SurfaceTextureResource>,
+        fullscreen_quad: Res<FullscreenQuad>,
+        solid_terrain_render_context: Res<SolidTerrainRenderContext>,
+        mut command_encoder_resource: ResMut<CommandEncoderResource>,
+        mut resize_events: EventReader<WindowResizeEvent>,
+    ) {
+        for _ in resize_events.read() {
+            final_render_context.resize(
+                &render_state,
+                &surface_texture_resource,
+                &fullscreen_quad,
+                &solid_terrain_render_context.color_texture,
+            );
+        }
+
+        final_render_context.draw(
+            &surface_texture_resource,
+            &fullscreen_quad,
+            &mut command_encoder_resource,
+        );
     }
 }
 

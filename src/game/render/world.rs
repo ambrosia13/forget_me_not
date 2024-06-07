@@ -218,29 +218,29 @@ impl SolidTerrainRenderContext {
 
         render_pass.draw_indexed(0..vertex::INDICES.len() as u32, 0, 0..1);
     }
-}
 
-pub fn init_solid_terrain_renderer(
-    mut commands: Commands,
-    render_state: Res<RenderState>,
-    camera_buffer: Res<CameraBuffer>,
-) {
-    let solid_terrain_render_context =
-        SolidTerrainRenderContext::new(&render_state, &camera_buffer);
-    commands.insert_resource(solid_terrain_render_context);
-}
-
-pub fn draw_solid_terrain(
-    render_state: Res<RenderState>,
-    camera_buffer: Res<CameraBuffer>,
-    mut render_context: ResMut<SolidTerrainRenderContext>,
-    mut command_encoder_resource: ResMut<CommandEncoderResource>,
-    mut resize_events: EventReader<WindowResizeEvent>,
-) {
-    for _ in resize_events.read() {
-        // Reconfigure the render context when the screen is resized
-        render_context.resize(&render_state, &camera_buffer);
+    pub fn init(
+        mut commands: Commands,
+        render_state: Res<RenderState>,
+        camera_buffer: Res<CameraBuffer>,
+    ) {
+        let solid_terrain_render_context =
+            SolidTerrainRenderContext::new(&render_state, &camera_buffer);
+        commands.insert_resource(solid_terrain_render_context);
     }
 
-    render_context.draw(&mut command_encoder_resource);
+    pub fn update(
+        render_state: Res<RenderState>,
+        camera_buffer: Res<CameraBuffer>,
+        mut render_context: ResMut<SolidTerrainRenderContext>,
+        mut command_encoder_resource: ResMut<CommandEncoderResource>,
+        mut resize_events: EventReader<WindowResizeEvent>,
+    ) {
+        for _ in resize_events.read() {
+            // Reconfigure the render context when the screen is resized
+            render_context.resize(&render_state, &camera_buffer);
+        }
+
+        render_context.draw(&mut command_encoder_resource);
+    }
 }

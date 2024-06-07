@@ -53,7 +53,9 @@ pub fn create_startup_schedule() -> Schedule {
     let mut schedule = Schedule::new(StartupSchedule);
 
     schedule.add_systems((
-        input::init,
+        input::MouseMotion::init,
+        input::KeyboardInput::init,
+        input::MouseInput::init,
         camera::Camera::init,
         render_state::LastFrameInstant::insert,
     ));
@@ -100,8 +102,9 @@ pub fn create_render_init_schedule() -> Schedule {
         (
             camera::CameraUniform::init,
             camera::CameraBuffer::init,
-            render::world::init_solid_terrain_renderer,
-            render::post::init_post_renderer,
+            render::world::SolidTerrainRenderContext::init,
+            render::post::FullscreenQuad::init,
+            render::post::FinalRenderContext::init,
         )
             .chain(),
     );
@@ -116,8 +119,8 @@ pub fn create_render_update_schedule() -> Schedule {
         (
             camera::CameraUniform::update,
             camera::CameraBuffer::update,
-            render::world::draw_solid_terrain,
-            render::post::draw_post_passes,
+            render::world::SolidTerrainRenderContext::update,
+            render::post::FinalRenderContext::update,
         )
             .chain(),
     );
@@ -136,7 +139,7 @@ pub fn create_pre_frame_schedule() -> Schedule {
 pub fn create_post_frame_schedule() -> Schedule {
     let mut schedule = Schedule::new(PostFrameSchedule);
 
-    schedule.add_systems(input::tick_input);
+    schedule.add_systems((input::KeyboardInput::update, input::MouseInput::update));
 
     schedule
 }
