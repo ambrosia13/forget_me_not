@@ -6,7 +6,7 @@ pub mod schedule;
 pub mod vertex;
 
 use crate::game::input::MouseMotion;
-use crate::render_state::{RenderState, WindowResizeEvent};
+use crate::render_state::{LastFrameInstant, RenderState, WindowResizeEvent};
 use bevy_ecs::prelude::World;
 use std::sync::Arc;
 use winit::event::{DeviceEvent, Event, WindowEvent};
@@ -31,8 +31,6 @@ fn init_window() -> (EventLoop<()>, Arc<Window>) {
 
 fn init_world() -> World {
     let mut world = World::new();
-
-    input::init(&mut world);
 
     world
 }
@@ -154,6 +152,14 @@ pub async fn run() {
                         // Run post-frame systems, that expect that all work for this frame has finished,
                         // so we can clean up some state.
                         post_frame_schedule.run(&mut world);
+
+                        // Reset mouse motion so results are correct
+                        let mut mouse_motion = world.resource_mut::<MouseMotion>();
+                        mouse_motion.delta_x = 0.0;
+                        mouse_motion.delta_y = 0.0;
+
+                        // Save the time that this frame happened
+                        world.insert_resource(LastFrameInstant(std::time::Instant::now()));
                     }
                     _ => {}
                 }

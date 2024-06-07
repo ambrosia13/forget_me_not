@@ -130,6 +130,15 @@ pub fn finish_frame(world: &mut World) {
 }
 
 #[derive(Resource, Deref, DerefMut)]
+pub struct LastFrameInstant(pub std::time::Instant);
+
+impl LastFrameInstant {
+    pub fn insert(world: &mut World) {
+        world.insert_resource(Self(std::time::Instant::now()));
+    }
+}
+
+#[derive(Resource, Deref, DerefMut)]
 pub struct CommandEncoderResource(pub wgpu::CommandEncoder);
 
 #[derive(Resource, Deref, DerefMut)]

@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
 
-use crate::game::{event, input, render};
+use crate::game::{camera, event, input, render};
 use crate::render_state;
 
 /*
@@ -52,11 +52,19 @@ pub struct PostFrameSchedule;
 pub fn create_startup_schedule() -> Schedule {
     let mut schedule = Schedule::new(StartupSchedule);
 
+    schedule.add_systems((
+        input::init,
+        camera::init,
+        render_state::LastFrameInstant::insert,
+    ));
+
     schedule
 }
 
 pub fn create_update_schedule() -> Schedule {
     let mut schedule = Schedule::new(UpdateSchedule);
+
+    schedule.add_systems(camera::update);
 
     schedule
 }
@@ -90,6 +98,7 @@ pub fn create_render_init_schedule() -> Schedule {
 
     schedule.add_systems(
         (
+            camera::init_uniform_buffer,
             render::world::init_solid_terrain_renderer,
             render::post::init_post_renderer,
         )
@@ -104,6 +113,7 @@ pub fn create_render_update_schedule() -> Schedule {
 
     schedule.add_systems(
         (
+            camera::update_uniform_buffer,
             render::world::draw_solid_terrain,
             render::post::draw_post_passes,
         )

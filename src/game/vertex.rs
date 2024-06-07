@@ -63,19 +63,19 @@ impl FrameVertex {
 
 pub const VERTICES: &[BlockVertex] = &[
     BlockVertex {
-        position: Vec3::new(0.0, 0.5, 0.0),
+        position: Vec3::new(0.0, 0.5, 0.5),
         color: Vec3::new(1.0, 0.0, 0.0),
         normal: Vec3::ZERO,
         uv: Vec2::ZERO,
     },
     BlockVertex {
-        position: Vec3::new(-0.5, -0.5, 0.0),
+        position: Vec3::new(-0.5, -0.5, 0.5),
         color: Vec3::new(0.0, 1.0, 0.0),
         normal: Vec3::ZERO,
         uv: Vec2::ZERO,
     },
     BlockVertex {
-        position: Vec3::new(0.5, -0.5, 0.0),
+        position: Vec3::new(0.5, -0.5, 0.5),
         color: Vec3::new(0.0, 0.0, 1.0),
         normal: Vec3::ZERO,
         uv: Vec2::ZERO,

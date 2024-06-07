@@ -1,3 +1,4 @@
+use crate::game::camera::CameraBuffer;
 use crate::game::vertex;
 use crate::render_state::{CommandEncoderResource, RenderState, WindowResizeEvent};
 use bevy_ecs::prelude::*;
@@ -11,10 +12,11 @@ pub struct SolidTerrainRenderContext {
     pub color_texture: wgpu::Texture,
     pub depth_texture: wgpu::Texture,
     pub pipeline: wgpu::RenderPipeline,
+    pub uniform_bind_group: wgpu::BindGroup,
 }
 
 impl SolidTerrainRenderContext {
-    pub fn new(render_state: &RenderState) -> Self {
+    pub fn new(render_state: &RenderState, camera_buffer: &CameraBuffer) -> Self {
         let vertex_buffer =
             render_state
                 .device
@@ -78,12 +80,41 @@ impl SolidTerrainRenderContext {
             .device
             .create_shader_module(wgpu::include_wgsl!("shaders/solid_terrain.wgsl"));
 
+        let uniform_bind_group_layout =
+            render_state
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Solid Terrain Uniform Bind Group Layout"),
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::all(),
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                });
+
+        let uniform_bind_group =
+            render_state
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Solid Terrain Uniform Bind Group"),
+                    layout: &uniform_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: camera_buffer.buffer.as_entire_binding(),
+                    }],
+                });
+
         let pipeline_layout =
             render_state
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Solid Terrain Render Pipeline Layout"),
-                    bind_group_layouts: &[],
+                    bind_group_layouts: &[&uniform_bind_group_layout],
                     push_constant_ranges: &[],
                 });
 
@@ -139,11 +170,12 @@ impl SolidTerrainRenderContext {
             color_texture,
             depth_texture,
             pipeline,
+            uniform_bind_group,
         }
     }
 
-    pub fn resize(&mut self, render_state: &RenderState) {
-        *self = Self::new(render_state);
+    pub fn resize(&mut self, render_state: &RenderState, camera_buffer: &CameraBuffer) {
+        *self = Self::new(render_state, camera_buffer);
         log::info!("Solid terrain render context resized");
     }
 
@@ -179,6 +211,8 @@ impl SolidTerrainRenderContext {
         });
 
         render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
@@ -186,20 +220,26 @@ impl SolidTerrainRenderContext {
     }
 }
 
-pub fn init_solid_terrain_renderer(mut commands: Commands, render_state: Res<RenderState>) {
-    let solid_terrain_render_context = SolidTerrainRenderContext::new(&render_state);
+pub fn init_solid_terrain_renderer(
+    mut commands: Commands,
+    render_state: Res<RenderState>,
+    camera_buffer: Res<CameraBuffer>,
+) {
+    let solid_terrain_render_context =
+        SolidTerrainRenderContext::new(&render_state, &camera_buffer);
     commands.insert_resource(solid_terrain_render_context);
 }
 
 pub fn draw_solid_terrain(
     render_state: Res<RenderState>,
+    camera_buffer: Res<CameraBuffer>,
     mut render_context: ResMut<SolidTerrainRenderContext>,
     mut command_encoder_resource: ResMut<CommandEncoderResource>,
     mut resize_events: EventReader<WindowResizeEvent>,
 ) {
     for _ in resize_events.read() {
         // Reconfigure the render context when the screen is resized
-        render_context.resize(&render_state);
+        render_context.resize(&render_state, &camera_buffer);
     }
 
     render_context.draw(&mut command_encoder_resource);

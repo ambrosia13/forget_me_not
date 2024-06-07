@@ -48,7 +48,7 @@ impl FullscreenQuad {
 #[derive(Resource)]
 pub struct FinalRenderContext {
     pub pipeline: wgpu::RenderPipeline,
-    pub input_texture_bind_group: wgpu::BindGroup,
+    pub texture_bind_group: wgpu::BindGroup,
 }
 
 impl FinalRenderContext {
@@ -72,7 +72,7 @@ impl FinalRenderContext {
                 ..Default::default()
             });
 
-        let input_texture_bind_group_layout =
+        let texture_bind_group_layout =
             render_state
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -97,12 +97,12 @@ impl FinalRenderContext {
                     ],
                 });
 
-        let input_texture_bind_group =
+        let texture_bind_group =
             render_state
                 .device
                 .create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Final Pass Input Texture Bind Group"),
-                    layout: &input_texture_bind_group_layout,
+                    layout: &texture_bind_group_layout,
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
@@ -120,7 +120,7 @@ impl FinalRenderContext {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Final Pass Render Pipeline Layout"),
-                    bind_group_layouts: &[&input_texture_bind_group_layout],
+                    bind_group_layouts: &[&texture_bind_group_layout],
                     push_constant_ranges: &[],
                 });
 
@@ -170,7 +170,7 @@ impl FinalRenderContext {
 
         Self {
             pipeline,
-            input_texture_bind_group,
+            texture_bind_group,
         }
     }
 
@@ -216,7 +216,7 @@ impl FinalRenderContext {
         });
 
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.input_texture_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
 
         render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
         render_pass.set_index_buffer(
