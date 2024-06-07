@@ -6,100 +6,6 @@ use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::keyboard::KeyCode;
 
-pub fn init(mut commands: Commands, render_state: Res<RenderState>) {
-    let mut camera = Camera::new(
-        Vec3::new(2.0, 0.0, 5.0),
-        Quat::from_rotation_y(0.0),
-        45.0,
-        render_state.size,
-        0.01,
-        100.0,
-    );
-
-    camera.look_at(Vec3::ZERO);
-
-    commands.insert_resource(camera);
-}
-
-pub fn update(
-    mut camera: ResMut<Camera>,
-    mut resize_events: EventReader<WindowResizeEvent>,
-    mouse_motion: Res<MouseMotion>,
-    keyboard_input: Res<KeyboardInput>,
-    last_frame_instant: Res<LastFrameInstant>,
-) {
-    for event in resize_events.read() {
-        camera.reconfigure_aspect(event.0);
-    }
-
-    camera.update_rotation(
-        mouse_motion.delta_x as f32,
-        mouse_motion.delta_y as f32,
-        0.25,
-    );
-
-    let delta_time = last_frame_instant.elapsed().as_secs_f32();
-
-    let mut velocity = Vec3::ZERO;
-    let forward = camera.forward_xz();
-    let right = camera.right_xz();
-    let up = Vec3::Y;
-
-    if keyboard_input.pressed(KeyCode::KeyW) {
-        velocity += forward;
-    }
-    if keyboard_input.pressed(KeyCode::KeyS) {
-        velocity -= forward;
-    }
-    if keyboard_input.pressed(KeyCode::KeyD) {
-        velocity += right;
-    }
-    if keyboard_input.pressed(KeyCode::KeyA) {
-        velocity -= right;
-    }
-    if keyboard_input.pressed(KeyCode::Space) {
-        velocity += up;
-    }
-    if keyboard_input.pressed(KeyCode::ShiftLeft) {
-        velocity -= up;
-    }
-
-    velocity = velocity.normalize_or_zero();
-    let movement_speed = 0.9 * delta_time;
-    camera.position += velocity * movement_speed;
-}
-
-pub fn init_uniform_buffer(mut commands: Commands, render_state: Res<RenderState>) {
-    let camera_uniform = CameraUniform::new();
-
-    commands.insert_resource(CameraBuffer {
-        buffer: render_state
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Uniform Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }),
-    });
-
-    commands.insert_resource(camera_uniform);
-}
-
-pub fn update_uniform_buffer(
-    mut camera_uniform: ResMut<CameraUniform>,
-    camera_buffer: Res<CameraBuffer>,
-    camera: Res<Camera>,
-    render_state: Res<RenderState>,
-) {
-    camera_uniform.update(&camera);
-
-    render_state.queue.write_buffer(
-        &camera_buffer.buffer,
-        0,
-        bytemuck::cast_slice(&[*camera_uniform]),
-    );
-}
-
 #[derive(Resource)]
 pub struct Camera {
     pub position: Vec3,
@@ -190,6 +96,69 @@ impl Camera {
 
         self.rotation = yaw_quat * pitch_quat;
     }
+
+    pub fn init(mut commands: Commands, render_state: Res<RenderState>) {
+        let mut camera = Camera::new(
+            Vec3::new(2.0, 0.0, 5.0),
+            Quat::from_rotation_y(0.0),
+            45.0,
+            render_state.size,
+            0.01,
+            100.0,
+        );
+
+        camera.look_at(Vec3::ZERO);
+
+        commands.insert_resource(camera);
+    }
+
+    pub fn update(
+        mut camera: ResMut<Camera>,
+        mut resize_events: EventReader<WindowResizeEvent>,
+        mouse_motion: Res<MouseMotion>,
+        keyboard_input: Res<KeyboardInput>,
+        last_frame_instant: Res<LastFrameInstant>,
+    ) {
+        for event in resize_events.read() {
+            camera.reconfigure_aspect(event.0);
+        }
+
+        camera.update_rotation(
+            mouse_motion.delta_x as f32,
+            mouse_motion.delta_y as f32,
+            0.25,
+        );
+
+        let delta_time = last_frame_instant.elapsed().as_secs_f32();
+
+        let mut velocity = Vec3::ZERO;
+        let forward = camera.forward_xz();
+        let right = camera.right_xz();
+        let up = Vec3::Y;
+
+        if keyboard_input.pressed(KeyCode::KeyW) {
+            velocity += forward;
+        }
+        if keyboard_input.pressed(KeyCode::KeyS) {
+            velocity -= forward;
+        }
+        if keyboard_input.pressed(KeyCode::KeyD) {
+            velocity += right;
+        }
+        if keyboard_input.pressed(KeyCode::KeyA) {
+            velocity -= right;
+        }
+        if keyboard_input.pressed(KeyCode::Space) {
+            velocity += up;
+        }
+        if keyboard_input.pressed(KeyCode::ShiftLeft) {
+            velocity -= up;
+        }
+
+        velocity = velocity.normalize_or_zero();
+        let movement_speed = 0.9 * delta_time;
+        camera.position += velocity * movement_speed;
+    }
 }
 
 #[repr(C)]
@@ -205,12 +174,52 @@ impl CameraUniform {
         }
     }
 
-    pub fn update(&mut self, camera: &Camera) {
-        self.view_projection_matrix = camera.get_projection_matrix() * camera.get_view_matrix();
+    pub fn from_camera(camera: &Camera) -> Self {
+        Self {
+            view_projection_matrix: camera.get_projection_matrix() * camera.get_view_matrix(),
+        }
+    }
+
+    pub fn init(mut commands: Commands) {
+        commands.insert_resource(CameraUniform::new());
+    }
+
+    pub fn update(mut camera_uniform: ResMut<CameraUniform>, camera: Res<Camera>) {
+        *camera_uniform = CameraUniform::from_camera(&camera);
     }
 }
 
 #[derive(Resource)]
 pub struct CameraBuffer {
     pub buffer: wgpu::Buffer,
+}
+
+impl CameraBuffer {
+    pub fn init(
+        mut commands: Commands,
+        render_state: Res<RenderState>,
+        camera_uniform: Res<CameraUniform>,
+    ) {
+        commands.insert_resource(CameraBuffer {
+            buffer: render_state
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Camera Uniform Buffer"),
+                    contents: bytemuck::cast_slice(&[*camera_uniform]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                }),
+        });
+    }
+
+    pub fn update(
+        camera_uniform: Res<CameraUniform>,
+        camera_buffer: Res<CameraBuffer>,
+        render_state: Res<RenderState>,
+    ) {
+        render_state.queue.write_buffer(
+            &camera_buffer.buffer,
+            0,
+            bytemuck::cast_slice(&[*camera_uniform]),
+        );
+    }
 }

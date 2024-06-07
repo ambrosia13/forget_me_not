@@ -54,7 +54,7 @@ pub fn create_startup_schedule() -> Schedule {
 
     schedule.add_systems((
         input::init,
-        camera::init,
+        camera::Camera::init,
         render_state::LastFrameInstant::insert,
     ));
 
@@ -64,7 +64,7 @@ pub fn create_startup_schedule() -> Schedule {
 pub fn create_update_schedule() -> Schedule {
     let mut schedule = Schedule::new(UpdateSchedule);
 
-    schedule.add_systems(camera::update);
+    schedule.add_systems(camera::Camera::update);
 
     schedule
 }
@@ -98,7 +98,8 @@ pub fn create_render_init_schedule() -> Schedule {
 
     schedule.add_systems(
         (
-            camera::init_uniform_buffer,
+            camera::CameraUniform::init,
+            camera::CameraBuffer::init,
             render::world::init_solid_terrain_renderer,
             render::post::init_post_renderer,
         )
@@ -113,7 +114,8 @@ pub fn create_render_update_schedule() -> Schedule {
 
     schedule.add_systems(
         (
-            camera::update_uniform_buffer,
+            camera::CameraUniform::update,
+            camera::CameraBuffer::update,
             render::world::draw_solid_terrain,
             render::post::draw_post_passes,
         )
