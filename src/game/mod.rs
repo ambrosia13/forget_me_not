@@ -11,7 +11,7 @@ use bevy_ecs::prelude::World;
 use std::sync::Arc;
 use winit::event::{DeviceEvent, Event, WindowEvent};
 use winit::event_loop::EventLoop;
-use winit::window::{Window, WindowBuilder};
+use winit::window::{CursorGrabMode, Window, WindowBuilder};
 
 fn init_window() -> (EventLoop<()>, Arc<Window>) {
     let event_loop = EventLoop::new().unwrap();
