@@ -31,7 +31,7 @@ impl Camera {
             position,
             rotation,
             pitch: 0.0,
-            yaw: 0.0,
+            yaw: -90.0,
             fov,
             aspect: window_size.width as f32 / window_size.height as f32,
             near,
@@ -50,6 +50,8 @@ impl Camera {
 
         let look_rotation_matrix = Mat3::from_cols(right, up, forward);
         self.rotation = Quat::from_mat3(&look_rotation_matrix);
+
+        (self.yaw, self.pitch) = self.yaw_pitch_from_rotation();
     }
 
     pub fn forward(&self) -> Vec3 {
@@ -70,10 +72,6 @@ impl Camera {
         Vec3::new(right.x, 0.0, right.z).normalize()
     }
 
-    const TEST: Mat4 = Mat4::from_cols_array(&[
-        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 1.0,
-    ]);
-
     pub fn get_view_matrix(&self) -> Mat4 {
         Mat4::look_at_rh(self.position, self.position + self.forward(), Vec3::Y)
     }
@@ -91,10 +89,27 @@ impl Camera {
         self.pitch += pitch_delta;
         self.pitch = self.pitch.clamp(-89.0, 89.0);
 
-        let yaw_quat = Quat::from_rotation_y(self.yaw.to_radians());
-        let pitch_quat = Quat::from_rotation_x(self.pitch.to_radians());
+        let yaw_quat = self.yaw_quat();
+        let pitch_quat = self.pitch_quat();
 
         self.rotation = yaw_quat * pitch_quat;
+    }
+
+    pub fn yaw_quat(&self) -> Quat {
+        Quat::from_rotation_y(self.yaw.to_radians())
+    }
+
+    pub fn pitch_quat(&self) -> Quat {
+        Quat::from_rotation_x(self.pitch.to_radians())
+    }
+
+    pub fn yaw_pitch_from_rotation(&self) -> (f32, f32) {
+        let forward = self.rotation * Vec3::Z;
+
+        let yaw = forward.z.atan2(forward.x).to_degrees();
+        let pitch = forward.y.asin().to_degrees();
+
+        (yaw, pitch)
     }
 
     pub fn init(mut commands: Commands, render_state: Res<RenderState>) {
@@ -156,7 +171,7 @@ impl Camera {
         }
 
         velocity = velocity.normalize_or_zero();
-        let movement_speed = 0.9 * delta_time;
+        let movement_speed = 1.0 * delta_time;
         camera.position += velocity * movement_speed;
     }
 }
