@@ -4,6 +4,7 @@ mod input;
 pub mod render;
 pub mod schedule;
 pub mod vertex;
+mod state;
 
 use crate::game::input::MouseMotion;
 use crate::render_state::{LastFrameInstant, RenderState, WindowResizeEvent};
@@ -31,7 +32,7 @@ fn init_window() -> (EventLoop<()>, Arc<Window>) {
 
 fn init_world() -> World {
     let mut world = World::new();
-
+    
     world
 }
 
