@@ -27,6 +27,7 @@ impl BlockVertex {
 pub struct FrameVertex {
     position: Vec2,
     uv: Vec2,
+    texcoord: Vec2,
 }
 
 impl FrameVertex {
@@ -36,6 +37,7 @@ impl FrameVertex {
         attributes: &wgpu::vertex_attr_array![
             0 => Float32x2,
             1 => Float32x2,
+            2 => Float32x2,
         ],
     };
 
@@ -43,18 +45,22 @@ impl FrameVertex {
         FrameVertex {
             position: Vec2::new(-1.0, -1.0),
             uv: Vec2::new(0.0, 1.0),
+            texcoord: Vec2::new(0.0, 0.0),
         },
         FrameVertex {
             position: Vec2::new(1.0, -1.0),
             uv: Vec2::new(1.0, 1.0),
+            texcoord: Vec2::new(1.0, 0.0),
         },
         FrameVertex {
             position: Vec2::new(1.0, 1.0),
             uv: Vec2::new(1.0, 0.0),
+            texcoord: Vec2::new(1.0, 1.0),
         },
         FrameVertex {
             position: Vec2::new(-1.0, 1.0),
             uv: Vec2::new(0.0, 0.0),
+            texcoord: Vec2::new(0.0, 1.0),
         },
     ];
 

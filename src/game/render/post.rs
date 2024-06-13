@@ -1,3 +1,4 @@
+use crate::game::camera::CameraBuffer;
 use crate::game::render::world::SolidTerrainRenderContext;
 use crate::game::vertex;
 use crate::render_state::{
@@ -54,6 +55,7 @@ impl FullscreenQuad {
 pub struct FinalRenderContext {
     pub pipeline: wgpu::RenderPipeline,
     pub texture_bind_group: wgpu::BindGroup,
+    pub uniform_bind_group: wgpu::BindGroup,
 }
 
 impl FinalRenderContext {
@@ -62,6 +64,7 @@ impl FinalRenderContext {
         surface_texture: &wgpu::SurfaceTexture,
         fullscreen_quad: &FullscreenQuad,
         input_texture: &wgpu::Texture,
+        camera_buffer: &CameraBuffer,
     ) -> Self {
         let input_texture_view = input_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let input_texture_sampler = render_state
@@ -81,7 +84,7 @@ impl FinalRenderContext {
             render_state
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("Final Pass Input Texture Bind Group Layout"),
+                    label: Some("Final Pass Texture Bind Group Layout"),
                     entries: &[
                         wgpu::BindGroupLayoutEntry {
                             binding: 0,
@@ -120,12 +123,41 @@ impl FinalRenderContext {
                     ],
                 });
 
+        let uniform_bind_group_layout =
+            render_state
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Final Pass Uniform Bind Group Layout"),
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::all(),
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                });
+
+        let uniform_bind_group =
+            render_state
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Final Pass Uniform Bind Group"),
+                    layout: &uniform_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: camera_buffer.buffer.as_entire_binding(),
+                    }],
+                });
+
         let pipeline_layout =
             render_state
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Final Pass Render Pipeline Layout"),
-                    bind_group_layouts: &[&texture_bind_group_layout],
+                    bind_group_layouts: &[&texture_bind_group_layout, &uniform_bind_group_layout],
                     push_constant_ranges: &[],
                 });
 
@@ -176,6 +208,7 @@ impl FinalRenderContext {
         Self {
             pipeline,
             texture_bind_group,
+            uniform_bind_group,
         }
     }
 
@@ -185,12 +218,14 @@ impl FinalRenderContext {
         surface_texture: &wgpu::SurfaceTexture,
         fullscreen_quad: &FullscreenQuad,
         input_texture: &wgpu::Texture,
+        camera_buffer: &CameraBuffer,
     ) {
         *self = Self::new(
             render_state,
             surface_texture,
             fullscreen_quad,
             input_texture,
+            camera_buffer,
         );
         log::info!("Final pass render context resized");
     }
@@ -222,6 +257,7 @@ impl FinalRenderContext {
 
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);
 
         render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
         render_pass.set_index_buffer(
@@ -237,12 +273,14 @@ impl FinalRenderContext {
         render_state: Res<RenderState>,
         solid_terrain_render_context: Res<SolidTerrainRenderContext>,
         fullscreen_quad: Res<FullscreenQuad>,
+        camera_buffer: Res<CameraBuffer>,
     ) {
         let final_render_context = FinalRenderContext::new(
             &render_state,
             &render_state.surface.get_current_texture().unwrap(),
             &fullscreen_quad,
             &solid_terrain_render_context.color_texture,
+            &camera_buffer,
         );
 
         commands.insert_resource(final_render_context);
@@ -254,6 +292,7 @@ impl FinalRenderContext {
         surface_texture_resource: Res<SurfaceTextureResource>,
         fullscreen_quad: Res<FullscreenQuad>,
         solid_terrain_render_context: Res<SolidTerrainRenderContext>,
+        camera_buffer: Res<CameraBuffer>,
         mut command_encoder_resource: ResMut<CommandEncoderResource>,
         mut resize_events: EventReader<WindowResizeEvent>,
     ) {
@@ -263,6 +302,7 @@ impl FinalRenderContext {
                 &surface_texture_resource,
                 &fullscreen_quad,
                 &solid_terrain_render_context.color_texture,
+                &camera_buffer,
             );
         }
 
@@ -272,47 +312,4 @@ impl FinalRenderContext {
             &mut command_encoder_resource,
         );
     }
-}
-
-pub fn init_post_renderer(
-    mut commands: Commands,
-    render_state: Res<RenderState>,
-    solid_terrain_render_context: Res<SolidTerrainRenderContext>,
-) {
-    let fullscreen_quad = FullscreenQuad::new(&render_state);
-
-    let final_render_context = FinalRenderContext::new(
-        &render_state,
-        &render_state.surface.get_current_texture().unwrap(),
-        &fullscreen_quad,
-        &solid_terrain_render_context.color_texture,
-    );
-
-    commands.insert_resource(fullscreen_quad);
-    commands.insert_resource(final_render_context);
-}
-
-pub fn draw_post_passes(
-    render_state: Res<RenderState>,
-    mut final_render_context: ResMut<FinalRenderContext>,
-    surface_texture_resource: Res<SurfaceTextureResource>,
-    fullscreen_quad: Res<FullscreenQuad>,
-    solid_terrain_render_context: Res<SolidTerrainRenderContext>,
-    mut command_encoder_resource: ResMut<CommandEncoderResource>,
-    mut resize_events: EventReader<WindowResizeEvent>,
-) {
-    for _ in resize_events.read() {
-        final_render_context.resize(
-            &render_state,
-            &surface_texture_resource,
-            &fullscreen_quad,
-            &solid_terrain_render_context.color_texture,
-        );
-    }
-
-    final_render_context.draw(
-        &surface_texture_resource,
-        &fullscreen_quad,
-        &mut command_encoder_resource,
-    );
 }

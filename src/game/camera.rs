@@ -1,7 +1,7 @@
 use crate::game::input::{KeyboardInput, MouseMotion};
 use crate::render_state::{LastFrameInstant, RenderState, WindowResizeEvent};
 use bevy_ecs::prelude::*;
-use glam::{Mat3, Mat4, Quat, Vec3};
+use glam::{Mat3, Mat4, Quat, Vec3, Vec4};
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::keyboard::KeyCode;
@@ -19,6 +19,13 @@ pub struct Camera {
 }
 
 impl Camera {
+    pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols(
+        Vec4::new(1.0, 0.0, 0.0, 0.0),
+        Vec4::new(0.0, -1.0, 0.0, 0.0),
+        Vec4::new(0.0, 0.0, 1.0, 0.0),
+        Vec4::new(0.0, 0.0, 0.0, 1.0),
+    );
+
     pub fn new(
         position: Vec3,
         rotation: Quat,
@@ -171,7 +178,7 @@ impl Camera {
         }
 
         velocity = velocity.normalize_or_zero();
-        let movement_speed = 1.0 * delta_time;
+        let movement_speed = 10.0 * delta_time;
         camera.position += velocity * movement_speed;
     }
 }
@@ -180,18 +187,25 @@ impl Camera {
 #[derive(Resource, Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
     view_projection_matrix: Mat4,
+    inverse_view_projection_matrix: Mat4,
 }
 
 impl CameraUniform {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             view_projection_matrix: Mat4::IDENTITY,
+            inverse_view_projection_matrix: Mat4::IDENTITY,
         }
     }
 
     pub fn from_camera(camera: &Camera) -> Self {
+        let view_projection_matrix = camera.get_projection_matrix() * camera.get_view_matrix();
+        let inverse_view_projection_matrix = view_projection_matrix.inverse();
+
         Self {
-            view_projection_matrix: camera.get_projection_matrix() * camera.get_view_matrix(),
+            view_projection_matrix,
+            inverse_view_projection_matrix,
         }
     }
 
