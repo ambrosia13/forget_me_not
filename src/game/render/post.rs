@@ -63,22 +63,42 @@ impl FinalRenderContext {
         render_state: &RenderState,
         surface_texture: &wgpu::SurfaceTexture,
         fullscreen_quad: &FullscreenQuad,
-        input_texture: &wgpu::Texture,
+        input_color_texture: &wgpu::Texture,
+        input_depth_texture: &wgpu::Texture,
         camera_buffer: &CameraBuffer,
     ) -> Self {
-        let input_texture_view = input_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let input_texture_sampler = render_state
-            .device
-            .create_sampler(&wgpu::SamplerDescriptor {
-                label: Some("Final Pass Input Texture Sampler"),
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                ..Default::default()
-            });
+        let input_color_texture_view =
+            input_color_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let input_color_texture_sampler =
+            render_state
+                .device
+                .create_sampler(&wgpu::SamplerDescriptor {
+                    label: Some("Final Pass Input Color Texture Sampler"),
+                    address_mode_u: wgpu::AddressMode::ClampToEdge,
+                    address_mode_v: wgpu::AddressMode::ClampToEdge,
+                    address_mode_w: wgpu::AddressMode::ClampToEdge,
+                    mag_filter: wgpu::FilterMode::Linear,
+                    min_filter: wgpu::FilterMode::Linear,
+                    mipmap_filter: wgpu::FilterMode::Nearest,
+                    ..Default::default()
+                });
+
+        let input_depth_texture_view =
+            input_depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let input_depth_texture_sampler =
+            render_state
+                .device
+                .create_sampler(&wgpu::SamplerDescriptor {
+                    label: Some("Final Pass Input Depth Texture Sampler"),
+                    address_mode_u: wgpu::AddressMode::ClampToEdge,
+                    address_mode_v: wgpu::AddressMode::ClampToEdge,
+                    address_mode_w: wgpu::AddressMode::ClampToEdge,
+                    mag_filter: wgpu::FilterMode::Linear,
+                    min_filter: wgpu::FilterMode::Linear,
+                    mipmap_filter: wgpu::FilterMode::Nearest,
+                    compare: None,
+                    ..Default::default()
+                });
 
         let texture_bind_group_layout =
             render_state
@@ -102,6 +122,22 @@ impl FinalRenderContext {
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Depth,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
                     ],
                 });
 
@@ -114,11 +150,19 @@ impl FinalRenderContext {
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&input_texture_view),
+                            resource: wgpu::BindingResource::TextureView(&input_color_texture_view),
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&input_texture_sampler),
+                            resource: wgpu::BindingResource::Sampler(&input_color_texture_sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::TextureView(&input_depth_texture_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: wgpu::BindingResource::Sampler(&input_depth_texture_sampler),
                         },
                     ],
                 });
@@ -217,14 +261,16 @@ impl FinalRenderContext {
         render_state: &RenderState,
         surface_texture: &wgpu::SurfaceTexture,
         fullscreen_quad: &FullscreenQuad,
-        input_texture: &wgpu::Texture,
+        input_color_texture: &wgpu::Texture,
+        input_depth_texture: &wgpu::Texture,
         camera_buffer: &CameraBuffer,
     ) {
         *self = Self::new(
             render_state,
             surface_texture,
             fullscreen_quad,
-            input_texture,
+            input_color_texture,
+            input_depth_texture,
             camera_buffer,
         );
         log::info!("Final pass render context resized");
@@ -280,6 +326,7 @@ impl FinalRenderContext {
             &render_state.surface.get_current_texture().unwrap(),
             &fullscreen_quad,
             &solid_terrain_render_context.color_texture,
+            &solid_terrain_render_context.depth_texture,
             &camera_buffer,
         );
 
@@ -302,6 +349,7 @@ impl FinalRenderContext {
                 &surface_texture_resource,
                 &fullscreen_quad,
                 &solid_terrain_render_context.color_texture,
+                &solid_terrain_render_context.depth_texture,
                 &camera_buffer,
             );
         }

@@ -137,7 +137,7 @@ impl Camera {
     pub fn update(
         mut camera: ResMut<Camera>,
         mut resize_events: EventReader<WindowResizeEvent>,
-        mouse_motion: Res<MouseMotion>,
+        mouse_motion: Option<Res<MouseMotion>>,
         keyboard_input: Res<KeyboardInput>,
         last_frame_instant: Res<LastFrameInstant>,
     ) {
@@ -145,11 +145,13 @@ impl Camera {
             camera.reconfigure_aspect(event.0);
         }
 
-        camera.update_rotation(
-            mouse_motion.delta_x as f32,
-            mouse_motion.delta_y as f32,
-            0.25,
-        );
+        if let Some(mouse_motion) = mouse_motion {
+            camera.update_rotation(
+                mouse_motion.delta_x as f32,
+                mouse_motion.delta_y as f32,
+                0.25,
+            );
+        }
 
         let delta_time = last_frame_instant.elapsed().as_secs_f32();
 
@@ -188,6 +190,8 @@ impl Camera {
 pub struct CameraUniform {
     view_projection_matrix: Mat4,
     inverse_view_projection_matrix: Mat4,
+    pos: Vec3,
+    _padding: u32,
 }
 
 impl CameraUniform {
@@ -196,6 +200,8 @@ impl CameraUniform {
         Self {
             view_projection_matrix: Mat4::IDENTITY,
             inverse_view_projection_matrix: Mat4::IDENTITY,
+            pos: Vec3::ZERO,
+            _padding: 0,
         }
     }
 
@@ -206,6 +212,8 @@ impl CameraUniform {
         Self {
             view_projection_matrix,
             inverse_view_projection_matrix,
+            pos: camera.position,
+            _padding: 0,
         }
     }
 

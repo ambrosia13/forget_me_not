@@ -3,8 +3,8 @@ pub mod event;
 mod input;
 pub mod render;
 pub mod schedule;
-pub mod vertex;
 mod state;
+pub mod vertex;
 
 use crate::game::input::MouseMotion;
 use crate::render_state::{LastFrameInstant, RenderState, WindowResizeEvent};
@@ -32,7 +32,7 @@ fn init_window() -> (EventLoop<()>, Arc<Window>) {
 
 fn init_world() -> World {
     let mut world = World::new();
-    
+
     world
 }
 
@@ -67,11 +67,12 @@ pub async fn run() {
                 event: DeviceEvent::MouseMotion { delta },
                 ..
             } => {
-                let mut mouse_motion = world.resource_mut::<MouseMotion>();
+                let mouse_motion = MouseMotion {
+                    delta_x: delta.0,
+                    delta_y: delta.1,
+                };
 
-                // Update the mouse delta
-                mouse_motion.delta_x = delta.0;
-                mouse_motion.delta_y = delta.1;
+                world.insert_resource(mouse_motion);
             }
             Event::WindowEvent { event, window_id }
                 if window_id == world.resource::<RenderState>().window().id() =>
@@ -154,10 +155,8 @@ pub async fn run() {
                         // so we can clean up some state.
                         post_frame_schedule.run(&mut world);
 
-                        // Reset mouse motion so results are correct
-                        let mut mouse_motion = world.resource_mut::<MouseMotion>();
-                        mouse_motion.delta_x = 0.0;
-                        mouse_motion.delta_y = 0.0;
+                        // Remove mouse motion because the frame is done
+                        world.remove_resource::<MouseMotion>();
 
                         // Save the time that this frame happened
                         world.insert_resource(LastFrameInstant(std::time::Instant::now()));
