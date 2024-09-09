@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::keyboard::KeyCode;
 
-#[derive(Resource)]
+#[derive(Resource, Debug)]
 pub struct Camera {
     pub position: Vec3,
     pub rotation: Quat,
@@ -121,7 +121,7 @@ impl Camera {
 
     pub fn init(mut commands: Commands, render_state: Res<RenderState>) {
         let mut camera = Camera::new(
-            Vec3::new(2.0, 0.0, 5.0),
+            Vec3::new(0.0, 0.0, 0.0),
             Quat::from_rotation_y(0.0),
             45.0,
             render_state.size,
@@ -129,7 +129,7 @@ impl Camera {
             100.0,
         );
 
-        camera.look_at(Vec3::ZERO);
+        camera.look_at(Vec3::new(0.0, 0.0, -1.0));
 
         commands.insert_resource(camera);
     }
@@ -180,7 +180,7 @@ impl Camera {
         }
 
         velocity = velocity.normalize_or_zero();
-        let movement_speed = 10.0 * delta_time;
+        let movement_speed = 50.0 * delta_time;
         camera.position += velocity * movement_speed;
     }
 }

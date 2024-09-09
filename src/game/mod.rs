@@ -1,14 +1,18 @@
 mod camera;
+pub mod command;
 pub mod event;
 mod input;
+pub mod object;
 pub mod render;
 pub mod schedule;
-mod state;
 pub mod vertex;
 
 use crate::game::input::MouseMotion;
 use crate::render_state::{LastFrameInstant, RenderState, WindowResizeEvent};
 use bevy_ecs::prelude::World;
+use command::{GameCommand, GameCommands, GameCommandsResource};
+use glam::Vec3;
+use object::Sphere;
 use std::sync::Arc;
 use winit::event::{DeviceEvent, Event, WindowEvent};
 use winit::event_loop::EventLoop;
@@ -31,14 +35,38 @@ fn init_window() -> (EventLoop<()>, Arc<Window>) {
 }
 
 fn init_world() -> World {
-    let mut world = World::new();
+    World::new()
+}
 
-    world
+fn init_commands() -> Arc<GameCommands> {
+    let game_commands = Arc::new(GameCommands::new());
+    let game_commands_copy = game_commands.clone();
+
+    std::thread::spawn(move || loop {
+        let mut input = String::new();
+
+        std::io::stdin().read_line(&mut input).unwrap();
+
+        game_commands.push(match GameCommand::parse(&input) {
+            Some(cmd) => cmd,
+            None => {
+                println!("Unrecognized command {}", input);
+                continue;
+            }
+        });
+
+        std::thread::sleep(std::time::Duration::from_secs_f32(0.1));
+    });
+
+    game_commands_copy
 }
 
 pub async fn run() {
     let (event_loop, window) = init_window();
     let mut world = init_world();
+    let game_commands = init_commands();
+
+    GameCommandsResource::init(game_commands, &mut world);
 
     let mut startup_schedule = schedule::create_startup_schedule();
     let mut update_schedule = schedule::create_update_schedule();

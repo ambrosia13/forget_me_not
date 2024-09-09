@@ -1,8 +1,10 @@
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
 
-use crate::game::{camera, event, input, render};
+use crate::game::{camera, command, event, input, render};
 use crate::render_state;
+
+use super::object;
 
 /*
     Execution order:
@@ -57,7 +59,8 @@ pub fn create_startup_schedule() -> Schedule {
         input::KeyboardInput::init,
         input::MouseInput::init,
         camera::Camera::init,
-        render_state::LastFrameInstant::insert,
+        object::Objects::init,
+        render_state::LastFrameInstant::init,
     ));
 
     schedule
@@ -66,7 +69,7 @@ pub fn create_startup_schedule() -> Schedule {
 pub fn create_update_schedule() -> Schedule {
     let mut schedule = Schedule::new(UpdateSchedule);
 
-    schedule.add_systems(camera::Camera::update);
+    schedule.add_systems((camera::Camera::update, command::receive_game_commands));
 
     schedule
 }
@@ -102,8 +105,11 @@ pub fn create_render_init_schedule() -> Schedule {
         (
             camera::CameraUniform::init,
             camera::CameraBuffer::init,
+            object::ObjectsUniform::init,
+            object::ObjectsBuffer::init,
             render::world::SolidTerrainRenderContext::init,
             render::post::FullscreenQuad::init,
+            render::post::RaytraceRenderContext::init,
             render::post::FinalRenderContext::init,
         )
             .chain(),
@@ -119,7 +125,10 @@ pub fn create_render_update_schedule() -> Schedule {
         (
             camera::CameraUniform::update,
             camera::CameraBuffer::update,
+            object::ObjectsUniform::update,
+            object::ObjectsBuffer::update,
             render::world::SolidTerrainRenderContext::update,
+            render::post::RaytraceRenderContext::update,
             render::post::FinalRenderContext::update,
         )
             .chain(),

@@ -5,16 +5,6 @@ use std::hash::Hash;
 use winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-pub fn init(mut commands: Commands) {
-    commands.insert_resource(MouseMotion {
-        delta_x: 0.0,
-        delta_y: 0.0,
-    });
-
-    commands.insert_resource(KeyboardInput(Input::new()));
-    commands.insert_resource(MouseInput(Input::new()));
-}
-
 #[derive(Event)]
 pub struct KeyboardInputEvent {
     pub device_id: DeviceId,
@@ -141,9 +131,4 @@ pub fn receive_input_events(
             ElementState::Released => keyboard_input.release(key_code),
         }
     }
-}
-
-pub fn tick_input(mut keyboard_input: ResMut<KeyboardInput>, mut mouse_input: ResMut<MouseInput>) {
-    keyboard_input.tick();
-    mouse_input.tick();
 }

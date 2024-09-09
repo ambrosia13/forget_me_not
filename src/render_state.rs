@@ -133,7 +133,7 @@ pub fn finish_frame(world: &mut World) {
 pub struct LastFrameInstant(pub std::time::Instant);
 
 impl LastFrameInstant {
-    pub fn insert(world: &mut World) {
+    pub fn init(world: &mut World) {
         world.insert_resource(Self(std::time::Instant::now()));
     }
 }
