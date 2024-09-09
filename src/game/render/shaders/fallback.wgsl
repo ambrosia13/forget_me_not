@@ -108,48 +108,5 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    let screen_space_pos = vec3(in.texcoord, 1.0);
-    let clip_space_pos = screen_space_pos * 2.0 - 1.0;
-
-    let temp = (camera.inverse_view_projection_matrix * vec4(clip_space_pos, 1.0));
-    let world_space_pos = temp.xyz / temp.w;
-    let view_space_pos = world_space_pos - camera.pos;
-
-    let view_dir = normalize(view_space_pos);
-
-    var ray: Ray;
-    ray.pos = camera.pos;
-    ray.dir = view_dir;
-
-    var color = ray.dir * 0.5;
-    var scene_dist = 1e30;
-
-    let light_dir = normalize(vec3(0.3, 0.9, -0.5));
-
-    // var sphere: Sphere;
-    // sphere.center = vec3(0.0, 0.0, 10.0);
-    // sphere.radius = 0.5;
-
-    // let hit = ray_sphere_intersect(ray, sphere);
-
-    // if hit.success {
-    //     color = 0.5 + vec3(1.0) * max(0.0, dot(hit.normal, light_dir));
-    // }
-
-    for (var i = 0u; i < objects.num_spheres; i++) {
-        let sphere = sphere_from_data(objects.spheres[i]);
-
-        if sphere.radius == 0.0 {
-            color = vec3(1.0, 0.0, 0.0);
-        }
-
-        let hit = ray_sphere_intersect(ray, sphere);
-
-        if hit.success && hit.distance < scene_dist {
-            color = sphere.color * (max(0.0, dot(hit.normal, light_dir)) + 0.1);
-            scene_dist = hit.distance;
-        }
-    }
-
-    return vec4(color, 1.0);
+    return vec4(1.0, 0.0, 0.0, 1.0);
 }

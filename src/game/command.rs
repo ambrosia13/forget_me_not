@@ -1,13 +1,19 @@
-use std::sync::Arc;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use bevy_ecs::prelude::*;
 use crossbeam_queue::SegQueue;
 use derived_deref::Deref;
 use glam::Vec3;
 
+use crate::render_state::{CommandEncoderResource, RenderState};
+
 use super::{
-    camera::Camera,
-    object::{Objects, Sphere},
+    camera::{Camera, CameraBuffer},
+    object::{Objects, ObjectsBuffer, Sphere},
+    render::post::{FullscreenQuad, RaytraceRenderContext},
 };
 
 pub struct GameCommandArgs<'a> {
@@ -72,12 +78,21 @@ impl<'a> GameCommandArgs<'a> {
 }
 
 #[derive(Debug)]
+pub enum ShaderPass {
+    Raytrace,
+    Final,
+}
+
+#[derive(Debug)]
 pub enum GameCommand {
     PrintPos,
     PrintCamera,
     Sphere(Sphere),
     LookAtSphere,
     LookAt(Vec3),
+    LoadShaders(ShaderPass, PathBuf),
+    ReloadShaders(ShaderPass),
+    UnloadShaders(ShaderPass),
 }
 
 impl GameCommand {
@@ -103,6 +118,36 @@ impl GameCommand {
 
                 GameCommand::LookAt(Vec3::new(x, y, z))
             }
+            "loadShaders" => {
+                let shader_type = args.next_str()?;
+
+                let pass = match shader_type {
+                    "raytrace" | "rt" => ShaderPass::Raytrace,
+                    "final" => ShaderPass::Final,
+                    _ => {
+                        return None;
+                    }
+                };
+
+                let path = args.next_str()?;
+                let path = PathBuf::from(path);
+
+                GameCommand::LoadShaders(pass, path)
+            }
+            "reloadShaders" => match args.next_str()? {
+                "raytrace" | "rt" => GameCommand::ReloadShaders(ShaderPass::Raytrace),
+                "final" => GameCommand::ReloadShaders(ShaderPass::Final),
+                _ => {
+                    return None;
+                }
+            },
+            "unloadShaders" => match args.next_str()? {
+                "raytrace" | "rt" => GameCommand::UnloadShaders(ShaderPass::Raytrace),
+                "final" => GameCommand::UnloadShaders(ShaderPass::Final),
+                _ => {
+                    return None;
+                }
+            },
             _ => return None,
         };
 
@@ -145,14 +190,45 @@ pub fn receive_game_commands(
     game_commands: Res<GameCommandsResource>,
     mut camera: ResMut<Camera>,
     mut objects: ResMut<Objects>,
+    render_state: Res<RenderState>,
+    mut raytrace_render_context: ResMut<RaytraceRenderContext>,
+    fullscreen_quad: Res<FullscreenQuad>,
+    camera_buffer: Res<CameraBuffer>,
+    objects_buffer: Res<ObjectsBuffer>,
 ) {
     if let Some(command) = game_commands.pop() {
         match command {
             GameCommand::PrintPos => log::info!("{}", camera.position),
             GameCommand::PrintCamera => log::info!("{:#?}", camera),
             GameCommand::Sphere(sphere) => objects.push_sphere(sphere),
-            GameCommand::LookAtSphere => camera.look_at(objects.spheres[0].center),
+            GameCommand::LookAtSphere => camera.look_at(objects.spheres[0].center()),
             GameCommand::LookAt(pos) => camera.look_at(pos),
+            GameCommand::LoadShaders(pass, path) => {
+                raytrace_render_context.set_shader_path(Some(path));
+
+                raytrace_render_context.recreate(
+                    &render_state,
+                    &fullscreen_quad,
+                    &camera_buffer,
+                    &objects_buffer,
+                );
+            }
+            GameCommand::ReloadShaders(pass) => raytrace_render_context.recreate(
+                &render_state,
+                &fullscreen_quad,
+                &camera_buffer,
+                &objects_buffer,
+            ),
+            GameCommand::UnloadShaders(pass) => {
+                raytrace_render_context.set_shader_path(None);
+
+                raytrace_render_context.recreate(
+                    &render_state,
+                    &fullscreen_quad,
+                    &camera_buffer,
+                    &objects_buffer,
+                );
+            }
         }
     }
 }
