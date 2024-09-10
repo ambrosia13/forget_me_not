@@ -7,7 +7,12 @@ struct VertexOutput {
 struct CameraUniform {
     view_projection_matrix: mat4x4<f32>,
     inverse_view_projection_matrix: mat4x4<f32>,
-    pos: vec3<f32>
+    pos: vec3<f32>,
+    view_width: u32,
+    view_height: u32,
+    padding_0: u32,
+    padding_1: u32,
+    padding_2: u32,
 }
 
 @group(0) @binding(0)
@@ -35,6 +40,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     //     let mix_factor = smoothstep(0.0, 0.2, clamp(view_dir.y, 0.0, 1.0));
     //     color = vec4(mix(vec3(1.0, 1.0, 1.0), vec3(0.25, 0.5, 1.0), mix_factor), 1.0);
     // }
+
+    color = vec4(pow(color.rgb, vec3(1.0 / 2.2)), color.a);
 
     return color;
 }

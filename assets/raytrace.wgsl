@@ -1,3 +1,7 @@
+const PI: f32 = 3.1415926535897932384626433832795;
+const HALF_PI: f32 = 1.57079632679489661923; 
+const TAU: f32 = 6.2831853071795864769252867665590; 
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
@@ -7,7 +11,12 @@ struct VertexOutput {
 struct CameraUniform {
     view_projection_matrix: mat4x4<f32>,
     inverse_view_projection_matrix: mat4x4<f32>,
-    pos: vec3<f32>
+    pos: vec3<f32>,
+    view_width: u32,
+    view_height: u32,
+    padding_0: u32,
+    padding_1: u32,
+    padding_2: u32,
 }
 
 struct PackedSphere {
@@ -34,6 +43,46 @@ var<uniform> camera: CameraUniform;
 
 @group(1) @binding(0)
 var<uniform> objects: ObjectsUniform;
+
+// NOISE ---------------------------
+
+var<private> rng_state: u32;
+
+fn init_rng(texcoord: vec2<f32>) {
+    let frag_coord: vec2<u32> = vec2(u32(texcoord.x * f32(camera.view_width)), u32(texcoord.y * f32(camera.view_height)));
+
+    let rng_ptr = &rng_state;
+    *rng_ptr = u32(camera.view_width * camera.view_height) * (frag_coord.x + frag_coord.y * camera.view_width);
+}
+
+fn pcg(seed: ptr<private, u32>) {
+    let state: u32 = *seed * 747796405u + 2891336453u;
+    let word: u32 = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    *seed = (word >> 22u) ^ word;
+}
+
+fn next_u32(rng: ptr<private, u32>) -> u32 {
+    pcg(rng);
+    return *rng;
+}
+
+fn next_f32() -> f32 {
+    return f32(next_u32(&rng_state)) / f32(0xFFFFFFFFu);
+}
+
+fn generate_unit_vector() -> vec3<f32> {
+    var xy = vec2(next_f32(), next_f32());
+    xy.x *= TAU;
+    xy.y *= 2.0 * xy.y - 1.0;
+
+    return vec3(vec2(sin(xy.x), cos(xy.x)) * sqrt(1.0 - xy.y * xy.y), xy.y);
+}
+
+fn generate_cosine_vector(normal: vec3<f32>) -> vec3<f32> {
+    return normalize(normal + generate_unit_vector());
+}
+
+// NOISE ---------------------------
 
 fn unpack_sphere(data: PackedSphere) -> Sphere {
     var sphere: Sphere;
@@ -137,6 +186,10 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
     return hit;
 }
 
+fn sky(ray: Ray) -> vec3<f32> {
+    return mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
+}
+
 fn raytrace(ray: Ray) -> Hit {
     var closest_hit: Hit;
 
@@ -150,8 +203,32 @@ fn raytrace(ray: Ray) -> Hit {
     return closest_hit;
 }
 
+fn pathtrace(ray: Ray) -> vec3<f32> {
+    var throughput = vec3(1.0);
+    var radiance = vec3(0.0);
+
+    var current_ray = ray;
+
+    for (var i = 0; i < 4; i++) {
+        let hit = raytrace(current_ray);
+
+        if !hit.success {
+            // hit sky
+            radiance += throughput * sky(current_ray);
+        }
+
+        // radiance += emission // no emission yet :(
+        throughput *= hit.material.color / PI;
+        current_ray = Ray(hit.position + hit.normal * 0.005, generate_cosine_vector(hit.normal));
+    }
+
+    return radiance;
+}
+
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
+    init_rng(in.texcoord);
+
     let screen_space_pos = vec3(in.texcoord, 1.0);
     let clip_space_pos = screen_space_pos * 2.0 - 1.0;
 
@@ -165,7 +242,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     ray.pos = camera.pos;
     ray.dir = view_dir;
 
-    var color = ray.dir;
+    // var color = sky(ray);
 
     var sphere: Sphere;
     sphere.center = vec3(0.0, 0.0, 10.0);
@@ -173,36 +250,28 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let light_dir = normalize(vec3(0.3, 0.9, -0.5));
 
-    let hit = raytrace(ray);
-
-    if hit.success {
-        color = hit.material.color * max(0.0, dot(hit.normal, light_dir));
-    }
-
-    // let hit = ray_sphere_intersect(ray, sphere);
+    // let hit = raytrace(ray);
 
     // if hit.success {
-    //     color = 0.5 + vec3(1.0) * max(0.0, dot(hit.normal, light_dir));
+    //     color = hit.material.color * max(0.0, dot(hit.normal, light_dir));
     // }
 
-    // for (var i = 0u; i < objects.num_spheres; i++) {
-    //     if objects.spheres[i].radius == 0.0 {
-    //         color = vec3(1.0, 0.0, 0.0);
-    //     }
+    // let rng = init_rng(in.texcoord);
+    // let rng_ptr = &rng;
 
-    //     let sphere = objects.spheres[i];
+    var color = vec3(0.0);
 
-    //     let hit = ray_sphere_intersect(ray, sphere);
-
-    //     if hit.success {
-    //         color = sphere.color * (max(0.0, dot(hit.normal, light_dir)) + 0.1);
-    //     }
-    // }
-
-    let slices = floor(in.texcoord.x * 10.0);
-    if in.texcoord.y < 0.1 && f32(objects.num_spheres) >= slices {
-        color = vec3(0.0, 0.0, 1.0);
+    let rays = 5;
+    for (var i = 0; i < rays; i++) {
+        color += pathtrace(ray) / f32(rays);
     }
+
+    // let color = pathtrace(ray);
+
+    // let slices = floor(in.texcoord.x * 10.0);
+    // if in.texcoord.y < 0.1 && f32(objects.num_spheres) >= slices {
+    //     color = vec3(0.0, 0.0, 1.0);
+    // }
 
     return vec4(color, 1.0);
 }

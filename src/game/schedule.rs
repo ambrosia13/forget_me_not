@@ -5,6 +5,7 @@ use crate::game::{camera, command, event, input, render};
 use crate::render_state;
 
 use super::object;
+use super::render::post::RaytraceRenderContext;
 
 /*
     Execution order:
@@ -81,6 +82,7 @@ pub fn create_event_init_schedule() -> Schedule {
         event::init_event::<input::KeyboardInputEvent>,
         event::init_event::<input::MouseInputEvent>,
         event::init_event::<render_state::WindowResizeEvent>,
+        event::init_event::<render::ReloadRenderContextEvent<RaytraceRenderContext>>,
     ));
 
     schedule
@@ -93,6 +95,7 @@ pub fn create_event_update_schedule() -> Schedule {
         event::clear_events::<input::KeyboardInputEvent>,
         event::clear_events::<input::MouseInputEvent>,
         event::clear_events::<render_state::WindowResizeEvent>,
+        event::clear_events::<render::ReloadRenderContextEvent<RaytraceRenderContext>>,
     ));
 
     schedule

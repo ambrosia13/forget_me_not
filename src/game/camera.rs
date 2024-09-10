@@ -16,6 +16,9 @@ pub struct Camera {
     aspect: f32,
     pub near: f32,
     pub far: f32,
+
+    view_width: u32,
+    view_height: u32,
 }
 
 impl Camera {
@@ -33,6 +36,8 @@ impl Camera {
         window_size: PhysicalSize<u32>,
         near: f32,
         far: f32,
+        view_width: u32,
+        view_height: u32,
     ) -> Self {
         Self {
             position,
@@ -43,6 +48,8 @@ impl Camera {
             aspect: window_size.width as f32 / window_size.height as f32,
             near,
             far,
+            view_width,
+            view_height,
         }
     }
 
@@ -127,6 +134,8 @@ impl Camera {
             render_state.size,
             0.01,
             100.0,
+            render_state.size.width,
+            render_state.size.height,
         );
 
         camera.look_at(Vec3::new(0.0, 0.0, -1.0));
@@ -191,7 +200,11 @@ pub struct CameraUniform {
     view_projection_matrix: Mat4,
     inverse_view_projection_matrix: Mat4,
     pos: Vec3,
-    _padding: u32,
+    view_width: u32,
+    view_height: u32,
+    _padding_0: u32,
+    _padding_1: u32,
+    _padding_2: u32,
 }
 
 impl CameraUniform {
@@ -201,7 +214,11 @@ impl CameraUniform {
             view_projection_matrix: Mat4::IDENTITY,
             inverse_view_projection_matrix: Mat4::IDENTITY,
             pos: Vec3::ZERO,
-            _padding: 0,
+            view_width: 0,
+            view_height: 0,
+            _padding_0: 0,
+            _padding_1: 0,
+            _padding_2: 0,
         }
     }
 
@@ -213,7 +230,11 @@ impl CameraUniform {
             view_projection_matrix,
             inverse_view_projection_matrix,
             pos: camera.position,
-            _padding: 0,
+            view_width: camera.view_width,
+            view_height: camera.view_height,
+            _padding_0: 0,
+            _padding_1: 0,
+            _padding_2: 0,
         }
     }
 

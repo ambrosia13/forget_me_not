@@ -8,6 +8,8 @@ use crate::render_state::{
 use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
 
+use super::ReloadRenderContextEvent;
+
 #[derive(Resource)]
 pub struct FullscreenQuad {
     pub vertex_buffer: wgpu::Buffer,
@@ -157,9 +159,25 @@ impl RaytraceRenderContext {
                     push_constant_ranges: &[],
                 });
 
-        let fragment_shader_module = render_state
-            .device
-            .create_shader_module(wgpu::include_wgsl!("shaders/raytrace.wgsl"));
+        let shader_path = std::env::current_dir()
+            .unwrap()
+            .join("assets/raytrace.wgsl");
+
+        let shader_src = match std::fs::read_to_string(shader_path) {
+            Ok(src) => src,
+            Err(_) => {
+                log::warn!("Couldn't read file at assets/raytrace.wgsl, using fallback shader");
+                include_str!("shaders/raytrace.wgsl").to_owned()
+            }
+        };
+
+        let fragment_shader_module =
+            render_state
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("raytrace.wgsl"),
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(shader_src)),
+                });
 
         let pipeline =
             render_state
@@ -209,7 +227,7 @@ impl RaytraceRenderContext {
         }
     }
 
-    pub fn resize(
+    pub fn recreate(
         &mut self,
         render_state: &RenderState,
         fullscreen_quad: &FullscreenQuad,
@@ -217,7 +235,7 @@ impl RaytraceRenderContext {
         objects_buffer: &ObjectsBuffer,
     ) {
         *self = Self::new(render_state, fullscreen_quad, camera_buffer, objects_buffer);
-        log::info!("Raytrace pass render context resized");
+        log::info!("Raytrace pass render context recreated");
     }
 
     pub fn draw(&self, fullscreen_quad: &FullscreenQuad, encoder: &mut wgpu::CommandEncoder) {
@@ -271,6 +289,7 @@ impl RaytraceRenderContext {
         commands.insert_resource(raytrace_render_context);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         render_state: Res<RenderState>,
         mut raytrace_render_context: ResMut<RaytraceRenderContext>,
@@ -279,9 +298,19 @@ impl RaytraceRenderContext {
         objects_buffer: Res<ObjectsBuffer>,
         mut command_encoder_resource: ResMut<CommandEncoderResource>,
         mut resize_events: EventReader<WindowResizeEvent>,
+        mut reload_events: EventReader<ReloadRenderContextEvent<RaytraceRenderContext>>,
     ) {
         for _ in resize_events.read() {
-            raytrace_render_context.resize(
+            raytrace_render_context.recreate(
+                &render_state,
+                &fullscreen_quad,
+                &camera_buffer,
+                &objects_buffer,
+            );
+        }
+
+        for _ in reload_events.read() {
+            raytrace_render_context.recreate(
                 &render_state,
                 &fullscreen_quad,
                 &camera_buffer,

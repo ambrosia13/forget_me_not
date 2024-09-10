@@ -5,9 +5,15 @@ use crossbeam_queue::SegQueue;
 use derived_deref::Deref;
 use glam::Vec3;
 
+use crate::render_state::RenderState;
+
 use super::{
-    camera::Camera,
-    object::{Objects, Sphere},
+    camera::{Camera, CameraBuffer},
+    object::{Objects, ObjectsBuffer, Sphere},
+    render::{
+        post::{FullscreenQuad, RaytraceRenderContext},
+        ReloadRenderContextEvent,
+    },
 };
 
 pub struct GameCommandArgs<'a> {
@@ -78,6 +84,7 @@ pub enum GameCommand {
     Sphere(Sphere),
     LookAtSphere,
     LookAt(Vec3),
+    ReloadShaders,
 }
 
 impl GameCommand {
@@ -103,6 +110,7 @@ impl GameCommand {
 
                 GameCommand::LookAt(Vec3::new(x, y, z))
             }
+            "reload" => GameCommand::ReloadShaders,
             _ => return None,
         };
 
@@ -141,18 +149,23 @@ impl GameCommandsResource {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn receive_game_commands(
     game_commands: Res<GameCommandsResource>,
     mut camera: ResMut<Camera>,
     mut objects: ResMut<Objects>,
+    mut reload_raytrace_events: EventWriter<ReloadRenderContextEvent<RaytraceRenderContext>>,
 ) {
     if let Some(command) = game_commands.pop() {
         match command {
             GameCommand::PrintPos => log::info!("{}", camera.position),
             GameCommand::PrintCamera => log::info!("{:#?}", camera),
             GameCommand::Sphere(sphere) => objects.push_sphere(sphere),
-            GameCommand::LookAtSphere => camera.look_at(objects.spheres[0].center),
+            GameCommand::LookAtSphere => camera.look_at(objects.spheres[0].center()),
             GameCommand::LookAt(pos) => camera.look_at(pos),
+            GameCommand::ReloadShaders => {
+                reload_raytrace_events.send(ReloadRenderContextEvent::new());
+            }
         }
     }
 }
