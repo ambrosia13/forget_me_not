@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
 use bytemuck::Zeroable;
-use glam::{Vec3, Vec4, Vec4Swizzles};
+use glam::Vec3;
 use wgpu::util::DeviceExt;
 
 use crate::render_state::RenderState;
@@ -8,28 +8,22 @@ use crate::render_state::RenderState;
 #[repr(C)]
 #[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Sphere {
-    data: Vec4,
-    color: Vec4,
+    pub center: Vec3,
+    _padding: u32,
+    pub color: Vec3,
+    _padding_1: u32,
+    pub radius: f32,
 }
 
 impl Sphere {
     pub fn new(center: Vec3, radius: f32, color: Vec3) -> Self {
         Self {
-            data: Vec4::new(center.x, center.y, center.z, radius),
-            color: Vec4::new(color.x, color.y, color.z, 0.0),
+            center,
+            _padding: 0,
+            color,
+            _padding_1: 1,
+            radius,
         }
-    }
-
-    pub fn center(&self) -> Vec3 {
-        self.data.xyz()
-    }
-
-    pub fn radius(&self) -> f32 {
-        self.data.w
-    }
-
-    pub fn color(&self) -> Vec3 {
-        self.data.xyz()
     }
 }
 
@@ -64,11 +58,10 @@ impl Objects {
 #[repr(C)]
 #[derive(Resource, Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ObjectsUniform {
-    spheres: [Sphere; 32],
-    planes: [Plane; 32],
     num_spheres: u32,
     num_planes: u32,
-    _padding: u64,
+    spheres: [Sphere; 32],
+    planes: [Plane; 32],
 }
 
 impl ObjectsUniform {
@@ -79,7 +72,6 @@ impl ObjectsUniform {
             spheres: [Sphere::zeroed(); 32],
             num_planes: 0,
             planes: [Plane::zeroed(); 32],
-            _padding: 0,
         }
     }
 
@@ -99,7 +91,6 @@ impl ObjectsUniform {
             spheres,
             num_planes: objects.planes.len() as u32,
             planes,
-            _padding: 0,
         }
     }
 

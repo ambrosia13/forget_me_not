@@ -1,5 +1,3 @@
-use std::path::{Path, PathBuf};
-
 use crate::game::camera::CameraBuffer;
 use crate::game::object::ObjectsBuffer;
 use crate::game::render::world::SolidTerrainRenderContext;
@@ -60,7 +58,6 @@ pub struct RaytraceRenderContext {
     pub pipeline: wgpu::RenderPipeline,
     pub camera_uniform_bind_group: wgpu::BindGroup,
     pub objects_uniform_bind_group: wgpu::BindGroup,
-    pub shader_path: Option<PathBuf>,
 }
 
 impl RaytraceRenderContext {
@@ -69,9 +66,7 @@ impl RaytraceRenderContext {
         fullscreen_quad: &FullscreenQuad,
         camera_buffer: &CameraBuffer,
         objects_buffer: &ObjectsBuffer,
-        shader_path: Option<PathBuf>,
     ) -> Self {
-        dbg!(&shader_path);
         let color_texture_format = wgpu::TextureFormat::Rgba32Float;
 
         let color_texture = render_state
@@ -162,19 +157,9 @@ impl RaytraceRenderContext {
                     push_constant_ranges: &[],
                 });
 
-        let fragment_shader_module = match shader_path {
-            Some(path) => render_state
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some(path.to_str().unwrap()),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(
-                        std::fs::read_to_string(&path).unwrap(),
-                    )),
-                }),
-            None => render_state
-                .device
-                .create_shader_module(wgpu::include_wgsl!("shaders/final.wgsl")),
-        };
+        let fragment_shader_module = render_state
+            .device
+            .create_shader_module(wgpu::include_wgsl!("shaders/raytrace.wgsl"));
 
         let pipeline =
             render_state
@@ -221,30 +206,17 @@ impl RaytraceRenderContext {
             pipeline,
             camera_uniform_bind_group,
             objects_uniform_bind_group,
-            shader_path: None,
         }
     }
 
-    pub fn set_shader_path(&mut self, shader_path: Option<PathBuf>) {
-        self.shader_path = shader_path;
-    }
-
-    pub fn recreate(
+    pub fn resize(
         &mut self,
         render_state: &RenderState,
         fullscreen_quad: &FullscreenQuad,
         camera_buffer: &CameraBuffer,
         objects_buffer: &ObjectsBuffer,
     ) {
-        let path = self.shader_path.clone();
-
-        *self = Self::new(
-            render_state,
-            fullscreen_quad,
-            camera_buffer,
-            objects_buffer,
-            path,
-        );
+        *self = Self::new(render_state, fullscreen_quad, camera_buffer, objects_buffer);
         log::info!("Raytrace pass render context resized");
     }
 
@@ -294,7 +266,6 @@ impl RaytraceRenderContext {
             &fullscreen_quad,
             &camera_buffer,
             &objects_buffer,
-            None,
         );
 
         commands.insert_resource(raytrace_render_context);
@@ -310,7 +281,7 @@ impl RaytraceRenderContext {
         mut resize_events: EventReader<WindowResizeEvent>,
     ) {
         for _ in resize_events.read() {
-            raytrace_render_context.recreate(
+            raytrace_render_context.resize(
                 &render_state,
                 &fullscreen_quad,
                 &camera_buffer,

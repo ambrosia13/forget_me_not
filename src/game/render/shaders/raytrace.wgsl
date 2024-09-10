@@ -15,12 +15,13 @@ struct Ray {
     dir: vec3<f32>,
 }
 
-struct PackedSphere {
-    data: vec4<f32>,
-    color: vec4<f32>,
+struct Sphere {
+    center: vec3<f32>,
+    color: vec3<f32>,
+    radius: f32,
 }
 
-struct PackedPlane {
+struct Plane {
     bleh: u32,
     bleh_2: u32,
     bleh_3: u32,
@@ -28,10 +29,10 @@ struct PackedPlane {
 }
 
 struct ObjectsUniform {
-    spheres: array<PackedSphere, 32>,
-    planes: array<PackedPlane, 32>,
     num_spheres: u32,
     num_planes: u32,
+    spheres: array<Sphere, 32>,
+    planes: array<Plane, 32>,
 }
 
 @group(0) @binding(0)
@@ -40,27 +41,10 @@ var<uniform> camera: CameraUniform;
 @group(1) @binding(0)
 var<uniform> objects: ObjectsUniform;
 
-struct Sphere {
-    center: vec3<f32>,
-    color: vec3<f32>,
-    radius: f32,
-}
-
-fn sphere_from_data(data: PackedSphere) -> Sphere {
-    var sphere: Sphere;
-
-    sphere.center = data.data.xyz;
-    sphere.color = data.color.xyz;
-    sphere.radius = data.data.w;
-
-    return sphere;
-}
-
 struct Hit {
     success: bool,
     position: vec3<f32>,
     normal: vec3<f32>,
-    distance: f32,
 }
 
 fn merge_hit(a: Hit, b: Hit) -> Hit {
@@ -118,7 +102,6 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
             hit.success = true;
             hit.position = point;
             hit.normal = normal;
-            hit.distance = t;
         }
     }
 
@@ -157,28 +140,38 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     ray.pos = camera.pos;
     ray.dir = view_dir;
 
-    var color = ray.dir * 0.5;
-    var scene_dist = 1e30;
+    var color = ray.dir;
+
+    var sphere: Sphere;
+    sphere.center = vec3(0.0, 0.0, 10.0);
+    sphere.radius = 0.5;
 
     let light_dir = normalize(vec3(0.3, 0.9, -0.5));
 
-    // var sphere: Sphere;
-    // sphere.center = vec3(0.0, 0.0, 10.0);
-    // sphere.radius = 0.5;
-
-    // let hit = ray_sphere_intersect(ray, sphere);
-
-    // if hit.success {
-    //     color = 0.5 + vec3(1.0) * max(0.0, dot(hit.normal, light_dir));
-    // }
-
-    let hit = raytrace(ray);
+    let hit = ray_sphere_intersect(ray, sphere);
 
     if hit.success {
-        color = sphere.color * (max(0.0, dot(hit.normal, light_dir)) + 0.1);
-        scene_dist = hit.distance;
+        color = 0.5 + vec3(1.0) * max(0.0, dot(hit.normal, light_dir));
     }
 
+    for (var i = 0u; i < objects.num_spheres; i++) {
+        if objects.spheres[i].radius == 0.0 {
+            color = vec3(1.0, 0.0, 0.0);
+        }
+
+        let sphere = objects.spheres[i];
+
+        let hit = ray_sphere_intersect(ray, sphere);
+
+        if hit.success {
+            color = sphere.color * (max(0.0, dot(hit.normal, light_dir)) + 0.1);
+        }
+    }
+
+    let slices = floor(in.texcoord.x * 10.0);
+    if in.texcoord.y < 0.1 && f32(objects.num_spheres) >= slices {
+        color = vec3(0.0, 0.0, 1.0);
+    }
 
     return vec4(color, 1.0);
 }
