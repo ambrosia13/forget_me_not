@@ -49,10 +49,10 @@ var<uniform> objects: ObjectsUniform;
 var<private> rng_state: u32;
 
 fn init_rng(texcoord: vec2<f32>) {
-    let frag_coord: vec2<u32> = vec2(u32(texcoord.x * f32(camera.view_width)), u32(texcoord.y * f32(camera.view_height)));
+    let frag_coord: vec2<f32> = vec2(texcoord.x * f32(camera.view_width), texcoord.y * f32(camera.view_height));
 
     let rng_ptr = &rng_state;
-    *rng_ptr = u32(camera.view_width * camera.view_height) * (camera.frame_count + 1) * (frag_coord.x + frag_coord.y * camera.view_width);
+    *rng_ptr = u32(camera.view_width * camera.view_height) * (camera.frame_count + 1) * u32(frag_coord.x + frag_coord.y * f32(camera.view_width));
 }
 
 fn pcg(seed: ptr<private, u32>) {
@@ -75,11 +75,15 @@ fn generate_unit_vector() -> vec3<f32> {
     xy.x *= TAU;
     xy.y *= 2.0 * xy.y - 1.0;
 
-    return vec3(vec2(sin(xy.x), cos(xy.x)) * sqrt(1.0 - xy.y * xy.y), xy.y);
+    return (vec3(vec2(sin(xy.x), cos(xy.x)) * sqrt(1.0 - xy.y * xy.y), xy.y));
 }
 
 fn generate_cosine_vector(normal: vec3<f32>) -> vec3<f32> {
     return normalize(normal + generate_unit_vector());
+}
+
+fn generate_cosine_vector_from_roughness(normal: vec3<f32>, roughness: f32) -> vec3<f32> {
+    return normalize(normal + generate_unit_vector() * roughness);
 }
 
 // NOISE ---------------------------
@@ -219,7 +223,7 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
 
         // radiance += emission // no emission yet :(
         throughput *= hit.material.color / PI;
-        current_ray = Ray(hit.position + hit.normal * 0.005, generate_cosine_vector(hit.normal));
+        current_ray = Ray(hit.position + hit.normal * 0.0001, generate_cosine_vector(hit.normal));
     }
 
     return radiance;
@@ -274,4 +278,5 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // }
 
     return vec4(color, 1.0);
+    //return vec4(step(0.5, pow(next_f32(), 2.2)));
 }

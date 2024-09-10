@@ -19,7 +19,6 @@ pub struct Camera {
 
     view_width: u32,
     view_height: u32,
-    frame_count: u32,
 }
 
 impl Camera {
@@ -51,7 +50,6 @@ impl Camera {
             far,
             view_width,
             view_height,
-            frame_count: 0,
         }
     }
 
@@ -152,8 +150,6 @@ impl Camera {
         keyboard_input: Res<KeyboardInput>,
         last_frame_instant: Res<LastFrameInstant>,
     ) {
-        camera.frame_count += 1;
-
         for event in resize_events.read() {
             camera.reconfigure_aspect(event.0);
         }
@@ -226,7 +222,7 @@ impl CameraUniform {
         }
     }
 
-    pub fn from_camera(camera: &Camera) -> Self {
+    pub fn from_camera(camera: &Camera, frame_count: u32) -> Self {
         let view_projection_matrix = camera.get_projection_matrix() * camera.get_view_matrix();
         let inverse_view_projection_matrix = view_projection_matrix.inverse();
 
@@ -236,7 +232,7 @@ impl CameraUniform {
             pos: camera.position,
             view_width: camera.view_width,
             view_height: camera.view_height,
-            frame_count: 0,
+            frame_count,
             _padding_1: 0,
             _padding_2: 0,
         }
@@ -247,7 +243,8 @@ impl CameraUniform {
     }
 
     pub fn update(mut camera_uniform: ResMut<CameraUniform>, camera: Res<Camera>) {
-        *camera_uniform = CameraUniform::from_camera(&camera);
+        *camera_uniform =
+            CameraUniform::from_camera(&camera, camera_uniform.frame_count.wrapping_add(1));
     }
 }
 
