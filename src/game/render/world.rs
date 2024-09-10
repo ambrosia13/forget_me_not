@@ -5,6 +5,8 @@ use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
 use wgpu::TextureDimension;
 
+use super::ReloadRenderContextEvent;
+
 #[derive(Resource)]
 pub struct SolidTerrainRenderContext {
     pub vertex_buffer: wgpu::Buffer,
@@ -174,9 +176,9 @@ impl SolidTerrainRenderContext {
         }
     }
 
-    pub fn resize(&mut self, render_state: &RenderState, camera_buffer: &CameraBuffer) {
+    pub fn recreate(&mut self, render_state: &RenderState, camera_buffer: &CameraBuffer) {
         *self = Self::new(render_state, camera_buffer);
-        log::info!("Solid terrain render context resized");
+        log::info!("Solid terrain render context recreated");
     }
 
     pub fn draw(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -235,10 +237,16 @@ impl SolidTerrainRenderContext {
         mut render_context: ResMut<SolidTerrainRenderContext>,
         mut command_encoder_resource: ResMut<CommandEncoderResource>,
         mut resize_events: EventReader<WindowResizeEvent>,
+        mut reload_events: EventReader<ReloadRenderContextEvent>,
     ) {
         for _ in resize_events.read() {
             // Reconfigure the render context when the screen is resized
-            render_context.resize(&render_state, &camera_buffer);
+            render_context.recreate(&render_state, &camera_buffer);
+        }
+
+        for _ in reload_events.read() {
+            // Reconfigure the render context when the screen is resized
+            render_context.recreate(&render_state, &camera_buffer);
         }
 
         render_context.draw(&mut command_encoder_resource);

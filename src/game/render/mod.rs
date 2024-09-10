@@ -6,10 +6,4 @@ pub mod post;
 pub mod world;
 
 #[derive(Event)]
-pub struct ReloadRenderContextEvent<T>(PhantomData<T>);
-
-impl<T> ReloadRenderContextEvent<T> {
-    pub fn new() -> Self {
-        ReloadRenderContextEvent(PhantomData)
-    }
-}
+pub struct ReloadRenderContextEvent;

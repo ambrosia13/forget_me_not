@@ -14,7 +14,7 @@ struct CameraUniform {
     pos: vec3<f32>,
     view_width: u32,
     view_height: u32,
-    padding_0: u32,
+    frame_count: u32,
     padding_1: u32,
     padding_2: u32,
 }
@@ -52,7 +52,7 @@ fn init_rng(texcoord: vec2<f32>) {
     let frag_coord: vec2<u32> = vec2(u32(texcoord.x * f32(camera.view_width)), u32(texcoord.y * f32(camera.view_height)));
 
     let rng_ptr = &rng_state;
-    *rng_ptr = u32(camera.view_width * camera.view_height) * (frag_coord.x + frag_coord.y * camera.view_width);
+    *rng_ptr = u32(camera.view_width * camera.view_height) * (camera.frame_count + 1) * (frag_coord.x + frag_coord.y * camera.view_width);
 }
 
 fn pcg(seed: ptr<private, u32>) {

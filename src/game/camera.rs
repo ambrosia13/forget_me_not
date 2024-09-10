@@ -19,6 +19,7 @@ pub struct Camera {
 
     view_width: u32,
     view_height: u32,
+    frame_count: u32,
 }
 
 impl Camera {
@@ -50,6 +51,7 @@ impl Camera {
             far,
             view_width,
             view_height,
+            frame_count: 0,
         }
     }
 
@@ -150,6 +152,8 @@ impl Camera {
         keyboard_input: Res<KeyboardInput>,
         last_frame_instant: Res<LastFrameInstant>,
     ) {
+        camera.frame_count += 1;
+
         for event in resize_events.read() {
             camera.reconfigure_aspect(event.0);
         }
@@ -202,7 +206,7 @@ pub struct CameraUniform {
     pos: Vec3,
     view_width: u32,
     view_height: u32,
-    _padding_0: u32,
+    frame_count: u32,
     _padding_1: u32,
     _padding_2: u32,
 }
@@ -216,7 +220,7 @@ impl CameraUniform {
             pos: Vec3::ZERO,
             view_width: 0,
             view_height: 0,
-            _padding_0: 0,
+            frame_count: 0,
             _padding_1: 0,
             _padding_2: 0,
         }
@@ -232,7 +236,7 @@ impl CameraUniform {
             pos: camera.position,
             view_width: camera.view_width,
             view_height: camera.view_height,
-            _padding_0: 0,
+            frame_count: 0,
             _padding_1: 0,
             _padding_2: 0,
         }

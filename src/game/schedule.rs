@@ -82,7 +82,7 @@ pub fn create_event_init_schedule() -> Schedule {
         event::init_event::<input::KeyboardInputEvent>,
         event::init_event::<input::MouseInputEvent>,
         event::init_event::<render_state::WindowResizeEvent>,
-        event::init_event::<render::ReloadRenderContextEvent<RaytraceRenderContext>>,
+        event::init_event::<render::ReloadRenderContextEvent>,
     ));
 
     schedule
@@ -95,7 +95,7 @@ pub fn create_event_update_schedule() -> Schedule {
         event::clear_events::<input::KeyboardInputEvent>,
         event::clear_events::<input::MouseInputEvent>,
         event::clear_events::<render_state::WindowResizeEvent>,
-        event::clear_events::<render::ReloadRenderContextEvent<RaytraceRenderContext>>,
+        event::clear_events::<render::ReloadRenderContextEvent>,
     ));
 
     schedule

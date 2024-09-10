@@ -298,7 +298,7 @@ impl RaytraceRenderContext {
         objects_buffer: Res<ObjectsBuffer>,
         mut command_encoder_resource: ResMut<CommandEncoderResource>,
         mut resize_events: EventReader<WindowResizeEvent>,
-        mut reload_events: EventReader<ReloadRenderContextEvent<RaytraceRenderContext>>,
+        mut reload_events: EventReader<ReloadRenderContextEvent>,
     ) {
         for _ in resize_events.read() {
             raytrace_render_context.recreate(
@@ -485,7 +485,7 @@ impl FinalRenderContext {
         }
     }
 
-    pub fn resize(
+    pub fn recreate(
         &mut self,
         render_state: &RenderState,
         surface_texture: &wgpu::SurfaceTexture,
@@ -500,7 +500,7 @@ impl FinalRenderContext {
             input_color_texture,
             camera_buffer,
         );
-        log::info!("Final pass render context resized");
+        log::info!("Final pass render context recreated");
     }
 
     pub fn draw(
@@ -568,9 +568,20 @@ impl FinalRenderContext {
         camera_buffer: Res<CameraBuffer>,
         mut command_encoder_resource: ResMut<CommandEncoderResource>,
         mut resize_events: EventReader<WindowResizeEvent>,
+        mut reload_events: EventReader<ReloadRenderContextEvent>,
     ) {
         for _ in resize_events.read() {
-            final_render_context.resize(
+            final_render_context.recreate(
+                &render_state,
+                &surface_texture_resource,
+                &fullscreen_quad,
+                &raytrace_render_context.color_texture,
+                &camera_buffer,
+            );
+        }
+
+        for _ in reload_events.read() {
+            final_render_context.recreate(
                 &render_state,
                 &surface_texture_resource,
                 &fullscreen_quad,

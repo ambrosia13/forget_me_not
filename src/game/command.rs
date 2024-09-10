@@ -154,7 +154,7 @@ pub fn receive_game_commands(
     game_commands: Res<GameCommandsResource>,
     mut camera: ResMut<Camera>,
     mut objects: ResMut<Objects>,
-    mut reload_raytrace_events: EventWriter<ReloadRenderContextEvent<RaytraceRenderContext>>,
+    mut reload_raytrace_events: EventWriter<ReloadRenderContextEvent>,
 ) {
     if let Some(command) = game_commands.pop() {
         match command {
@@ -164,7 +164,7 @@ pub fn receive_game_commands(
             GameCommand::LookAtSphere => camera.look_at(objects.spheres[0].center()),
             GameCommand::LookAt(pos) => camera.look_at(pos),
             GameCommand::ReloadShaders => {
-                reload_raytrace_events.send(ReloadRenderContextEvent::new());
+                reload_raytrace_events.send(ReloadRenderContextEvent);
             }
         }
     }
