@@ -63,6 +63,25 @@ struct Hit {
     distance: f32,
 }
 
+fn merge_hit(a: Hit, b: Hit) -> Hit {
+    var hit: Hit;
+
+    if !(a.success || b.success) {
+        hit.success = false;
+        return hit;
+    } else if a.success && !b.success {
+        return a;
+    } else if b.success && !a.success {
+        return b;
+    } else {
+        if a.distance < b.distance {
+            hit = a;
+        } else {
+            hit = b;
+        }
+    }
+}
+
 fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
     var hit: Hit;
     hit.success = false;
@@ -106,6 +125,23 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
     return hit;
 }
 
+fn raytrace(ray: Ray) -> Hit {
+    var closest_hit: Hit;
+
+    for (var i = 0u; i < objects.num_spheres; i++) {
+        let sphere = sphere_from_data(objects.spheres[i]);
+
+        if sphere.radius == 0.0 {
+            color = vec3(1.0, 0.0, 0.0);
+        }
+
+        let hit = ray_sphere_intersect(ray, sphere);
+        closest_hit = merge_hit(closest_hit, hit);
+    }
+
+    return closest_hit;
+}
+
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let screen_space_pos = vec3(in.texcoord, 1.0);
@@ -136,20 +172,13 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     //     color = 0.5 + vec3(1.0) * max(0.0, dot(hit.normal, light_dir));
     // }
 
-    for (var i = 0u; i < objects.num_spheres; i++) {
-        let sphere = sphere_from_data(objects.spheres[i]);
+    let hit = raytrace(ray);
 
-        if sphere.radius == 0.0 {
-            color = vec3(1.0, 0.0, 0.0);
-        }
-
-        let hit = ray_sphere_intersect(ray, sphere);
-
-        if hit.success && hit.distance < scene_dist {
-            color = sphere.color * (max(0.0, dot(hit.normal, light_dir)) + 0.1);
-            scene_dist = hit.distance;
-        }
+    if hit.success {
+        color = sphere.color * (max(0.0, dot(hit.normal, light_dir)) + 0.1);
+        scene_dist = hit.distance;
     }
+
 
     return vec4(color, 1.0);
 }
