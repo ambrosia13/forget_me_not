@@ -199,6 +199,8 @@ impl Camera {
 pub struct CameraUniform {
     view_projection_matrix: Mat4,
     inverse_view_projection_matrix: Mat4,
+    view_matrix: Mat4,
+    inverse_view_matrix: Mat4,
     pos: Vec3,
     view_width: u32,
     view_height: u32,
@@ -213,6 +215,8 @@ impl CameraUniform {
         Self {
             view_projection_matrix: Mat4::IDENTITY,
             inverse_view_projection_matrix: Mat4::IDENTITY,
+            view_matrix: Mat4::IDENTITY,
+            inverse_view_matrix: Mat4::IDENTITY,
             pos: Vec3::ZERO,
             view_width: 0,
             view_height: 0,
@@ -223,12 +227,17 @@ impl CameraUniform {
     }
 
     pub fn from_camera(camera: &Camera, frame_count: u32) -> Self {
-        let view_projection_matrix = camera.get_projection_matrix() * camera.get_view_matrix();
+        let view_matrix = camera.get_view_matrix();
+        let inverse_view_matrix = view_matrix.inverse();
+
+        let view_projection_matrix = camera.get_projection_matrix() * view_matrix;
         let inverse_view_projection_matrix = view_projection_matrix.inverse();
 
         Self {
             view_projection_matrix,
             inverse_view_projection_matrix,
+            view_matrix,
+            inverse_view_matrix,
             pos: camera.position,
             view_width: camera.view_width,
             view_height: camera.view_height,

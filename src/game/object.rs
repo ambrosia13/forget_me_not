@@ -10,13 +10,15 @@ use crate::render_state::RenderState;
 pub struct Sphere {
     data: Vec4,
     color: Vec4,
+    emission: Vec4,
 }
 
 impl Sphere {
-    pub fn new(center: Vec3, radius: f32, color: Vec3) -> Self {
+    pub fn new(center: Vec3, radius: f32, color: Vec3, emission: Vec3) -> Self {
         Self {
             data: Vec4::new(center.x, center.y, center.z, radius),
             color: Vec4::new(color.x, color.y, color.z, 0.0),
+            emission: Vec4::new(emission.x, emission.y, emission.z, 0.0),
         }
     }
 

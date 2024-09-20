@@ -4,11 +4,13 @@ use bevy_ecs::prelude::*;
 use crossbeam_queue::SegQueue;
 use derived_deref::Deref;
 use glam::Vec3;
+use winit::keyboard::KeyCode;
 
 use crate::render_state::RenderState;
 
 use super::{
     camera::{Camera, CameraBuffer},
+    input::{Input, KeyboardInput},
     object::{Objects, ObjectsBuffer, Sphere},
     render::{
         post::{FullscreenQuad, RaytraceRenderContext},
@@ -99,8 +101,13 @@ impl GameCommand {
                 let center = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
                 let radius = args.next_f32()?;
                 let color = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
+                let emission = Vec3::new(
+                    args.next_f32().unwrap_or(0.0),
+                    args.next_f32().unwrap_or(0.0),
+                    args.next_f32().unwrap_or(0.0),
+                );
 
-                GameCommand::Sphere(Sphere::new(center, radius, color))
+                GameCommand::Sphere(Sphere::new(center, radius, color, emission))
             }
             "lookAtSphere" => GameCommand::LookAtSphere,
             "lookAt" => {
@@ -146,6 +153,15 @@ pub struct GameCommandsResource(Arc<GameCommands>);
 impl GameCommandsResource {
     pub fn init(game_commands: Arc<GameCommands>, world: &mut World) {
         world.insert_resource(GameCommandsResource(game_commands));
+    }
+}
+
+pub fn send_game_commands_via_keybinds(
+    input: Res<KeyboardInput>,
+    game_commands: Res<GameCommandsResource>,
+) {
+    if input.just_pressed(KeyCode::KeyR) {
+        game_commands.push(GameCommand::ReloadShaders);
     }
 }
 

@@ -11,6 +11,8 @@ struct VertexOutput {
 struct CameraUniform {
     view_projection_matrix: mat4x4<f32>,
     inverse_view_projection_matrix: mat4x4<f32>,
+    view_matrix: mat4x4<f32>,
+    inverse_view_matrix: mat4x4<f32>,
     pos: vec3<f32>,
     view_width: u32,
     view_height: u32,
@@ -22,6 +24,7 @@ struct CameraUniform {
 struct PackedSphere {
     data: vec4<f32>,
     color: vec4<f32>,
+    emission: vec4<f32>,
 }
 
 struct PackedPlane {
@@ -61,19 +64,19 @@ fn pcg(seed: ptr<private, u32>) {
     *seed = (word >> 22u) ^ word;
 }
 
-fn next_u32(rng: ptr<private, u32>) -> u32 {
-    pcg(rng);
-    return *rng;
+fn next_u32() -> u32 {
+    pcg(&rng_state);
+    return rng_state;
 }
 
 fn next_f32() -> f32 {
-    return f32(next_u32(&rng_state)) / f32(0xFFFFFFFFu);
+    return f32(next_u32()) / f32(0xFFFFFFFFu);
 }
 
 fn generate_unit_vector() -> vec3<f32> {
     var xy = vec2(next_f32(), next_f32());
     xy.x *= TAU;
-    xy.y *= 2.0 * xy.y - 1.0;
+    xy.y = 2.0 * xy.y - 1.0;
 
     return (vec3(vec2(sin(xy.x), cos(xy.x)) * sqrt(1.0 - xy.y * xy.y), xy.y));
 }
@@ -94,6 +97,7 @@ fn unpack_sphere(data: PackedSphere) -> Sphere {
     sphere.center = data.data.xyz;
     sphere.color = data.color.xyz;
     sphere.radius = data.data.w;
+    sphere.emission = data.emission.xyz;
 
     return sphere;
 }
@@ -104,12 +108,14 @@ struct Ray {
 }
 
 struct Material {
-    color: vec3<f32>,
+    albedo: vec3<f32>,
+    emission: vec3<f32>,
 }
 
 struct Sphere {
     center: vec3<f32>,
     color: vec3<f32>,
+    emission: vec3<f32>,
     radius: f32,
 }
 
@@ -147,7 +153,8 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
     hit.success = false;
 
     var material: Material;
-    material.color = sphere.color;
+    material.albedo = sphere.color;
+    material.emission = sphere.emission;
 
     hit.material = material;
 
@@ -194,6 +201,22 @@ fn sky(ray: Ray) -> vec3<f32> {
     return mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
 }
 
+fn get_random_sphere() -> Sphere {
+    return unpack_sphere(objects.spheres[next_u32() % objects.num_spheres]);
+}
+
+fn generate_ray_to_sphere(ray: Ray, sphere: Sphere) -> Ray {
+    let point = sphere.center + generate_unit_vector() * sphere.radius;
+    let dir = normalize(point - ray.pos);
+
+    return Ray(ray.pos, dir);
+}
+
+// fn pdf_sphere(ray: Ray, sphere: Sphere) -> f32 {
+//     let dist = distance(ray.pos, sphere.center);
+//     return TAU * (1.0 - dist / sqrt(dist * dist + sphere.radius * sphere.radius));
+// }
+
 fn raytrace(ray: Ray) -> Hit {
     var closest_hit: Hit;
 
@@ -208,26 +231,76 @@ fn raytrace(ray: Ray) -> Hit {
 }
 
 fn pathtrace(ray: Ray) -> vec3<f32> {
+    var incoming_normal = vec3(10.0);
+
     var throughput = vec3(1.0);
     var radiance = vec3(0.0);
 
     var current_ray = ray;
 
-    for (var i = 0; i < 4; i++) {
-        let hit = raytrace(current_ray);
+    for (var i = 0; i < 5; i++) {
+        var hit: Hit;
+        var weight: f32 = 1.0 / TAU;
+
+        // if next_f32() > 1.0 && i != 0 {
+        //     let sphere = get_random_sphere();
+        //     let d = distance(current_ray.pos, sphere.center);
+
+        //     current_ray = generate_ray_to_sphere(current_ray, sphere);
+        //     weight = TAU * (1.0 - sqrt(d * d - sphere.radius * sphere.radius) / d) * dot(incoming_normal, current_ray.dir);
+        // }
+
+        // if next_f32() > 0.5 {
+        hit = raytrace(current_ray);
+        // weight = 1.0;
+        // } else {
+        //     let sphere = get_random_sphere();
+        //     let ray_to_sphere = generate_ray_to_sphere(current_ray, sphere);
+        //     hit = raytrace(ray_to_sphere);
+
+        //     if incoming_normal.x == 10.0 {
+        //         weight = 0.0;
+        //     } else {
+        //         weight = max(0.0, dot(incoming_normal, ray_to_sphere.dir));
+        //     }
+        // }
 
         if !hit.success {
             // hit sky
             radiance += throughput * sky(current_ray);
+            break;
         }
 
-        // radiance += emission // no emission yet :(
-        throughput *= hit.material.color / PI;
+        incoming_normal = hit.normal;
+        radiance += throughput * hit.material.emission;
+        throughput *= hit.material.albedo / PI;
+
         current_ray = Ray(hit.position + hit.normal * 0.0001, generate_cosine_vector(hit.normal));
     }
 
     return radiance;
 }
+
+// fn pathtrace(ray: Ray) -> vec3<f32> {
+//     let radiance = vec3(0.0);
+//     let throughput = vec3(1.0);
+
+//     let bounces = 4;
+
+//     for (var bounce = 0; bounce < bounces; bounce++) {
+//         let hit = raytrace(ray);
+
+//         if !hit.success {
+//             radiance += throughput * sky(ray);
+//             break;
+//         }
+
+//         let new_dir = generate_cosine_vector(hit.normal);
+//         let pdf = dot(hit.normal, new_dir) / PI;
+
+//         let brdf = vec3(1.0 / PI);
+//     }
+// }
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {

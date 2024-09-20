@@ -70,7 +70,11 @@ pub fn create_startup_schedule() -> Schedule {
 pub fn create_update_schedule() -> Schedule {
     let mut schedule = Schedule::new(UpdateSchedule);
 
-    schedule.add_systems((camera::Camera::update, command::receive_game_commands));
+    schedule.add_systems((
+        camera::Camera::update,
+        command::receive_game_commands,
+        command::send_game_commands_via_keybinds,
+    ));
 
     schedule
 }
@@ -113,6 +117,7 @@ pub fn create_render_init_schedule() -> Schedule {
             render::world::SolidTerrainRenderContext::init,
             render::post::FullscreenQuad::init,
             render::post::RaytraceRenderContext::init,
+            render::post::BloomRenderContext::init,
             render::post::FinalRenderContext::init,
         )
             .chain(),
@@ -132,6 +137,7 @@ pub fn create_render_update_schedule() -> Schedule {
             object::ObjectsBuffer::update,
             render::world::SolidTerrainRenderContext::update,
             render::post::RaytraceRenderContext::update,
+            render::post::BloomRenderContext::update,
             render::post::FinalRenderContext::update,
         )
             .chain(),
