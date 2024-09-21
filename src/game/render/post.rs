@@ -326,23 +326,17 @@ impl RaytraceRenderContext {
 pub struct BloomRenderContext {
     // downsampling
     pub downsample_pipeline: wgpu::RenderPipeline,
-    pub downsample_texture_bind_group_layout: wgpu::BindGroupLayout,
+    pub downsample_texture_bind_groups: Vec<wgpu::BindGroup>,
     pub downsample_texture: wgpu::Texture,
-
-    pub input_texture_view: wgpu::TextureView,
-    pub input_texture_sampler: wgpu::Sampler,
     pub downsample_texture_views: Vec<wgpu::TextureView>,
-    pub downsample_texture_sampler: wgpu::Sampler,
 
     // upsampling
     pub first_upsample_pipeline: wgpu::RenderPipeline,
-    pub first_upsample_texture_bind_group_layout: wgpu::BindGroupLayout,
+    pub first_upsample_texture_bind_group: wgpu::BindGroup,
     pub upsample_pipeline: wgpu::RenderPipeline,
-    pub upsample_texture_bind_group_layout: wgpu::BindGroupLayout,
+    pub upsample_texture_bind_groups: Vec<wgpu::BindGroup>,
     pub upsample_texture: wgpu::Texture,
-
     pub upsample_texture_views: Vec<wgpu::TextureView>,
-    pub upsample_texture_sampler: wgpu::Sampler,
 
     // merge to final image
     pub bloom_texture: wgpu::Texture,
@@ -357,8 +351,42 @@ impl BloomRenderContext {
         render_state: &RenderState,
         fullscreen_quad: &FullscreenQuad,
         input_texture: &wgpu::Texture,
+        camera_buffer: &CameraBuffer,
         mip_levels: u32,
     ) -> Self {
+        let input_texture_view = input_texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(wgpu::TextureFormat::Rgba32Float),
+            ..Default::default()
+        });
+
+        let input_texture_sampler = render_state
+            .device
+            .create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("Bloom Downsample Input Texture Sampler"),
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            });
+
+        let mut lod_buffers = Vec::with_capacity(mip_levels as usize);
+
+        for target_mip in 0..mip_levels as usize {
+            lod_buffers.push(render_state.device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some(&format!(
+                        "Bloom Downsample Lod Buffer (target_mip = {})",
+                        target_mip
+                    )),
+                    contents: bytemuck::cast_slice(&[target_mip as u32]),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                },
+            ));
+        }
+
         let downsample_texture = render_state
             .device
             .create_texture(&wgpu::TextureDescriptor {
@@ -394,6 +422,19 @@ impl BloomRenderContext {
                     anisotropy_clamp: 1,
                     border_color: None,
                 });
+
+        let mut downsample_texture_views = Vec::with_capacity(mip_levels as usize);
+
+        for lod in 0..mip_levels {
+            downsample_texture_views.push(downsample_texture.create_view(
+                &wgpu::TextureViewDescriptor {
+                    format: Some(wgpu::TextureFormat::Rgba32Float),
+                    base_mip_level: lod,
+                    mip_level_count: Some(1),
+                    ..Default::default()
+                },
+            ));
+        }
 
         let downsample_texture_bind_group_layout =
             render_state
@@ -441,6 +482,69 @@ impl BloomRenderContext {
                         },
                     ],
                 });
+
+        let mut downsample_texture_bind_groups = Vec::with_capacity(mip_levels as usize);
+
+        downsample_texture_bind_groups.push(render_state.device.create_bind_group(
+            &wgpu::BindGroupDescriptor {
+                label: Some("Bloom Downsample Bind Group (target_mip = 0)"),
+                layout: &downsample_texture_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&input_texture_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&input_texture_sampler),
+                    },
+                    // Camera uniform
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: camera_buffer.buffer.as_entire_binding(),
+                    },
+                    // lod uniform
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: lod_buffers[0].as_entire_binding(),
+                    },
+                ],
+            },
+        ));
+
+        for target_mip in 1..mip_levels as usize {
+            downsample_texture_bind_groups.push(render_state.device.create_bind_group(
+                &wgpu::BindGroupDescriptor {
+                    label: Some(&format!(
+                        "Bloom Downsample Bind Group (target_mip = {})",
+                        target_mip
+                    )),
+                    layout: &downsample_texture_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(
+                                &downsample_texture_views[target_mip - 1],
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&downsample_texture_sampler),
+                        },
+                        // Camera uniform
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: camera_buffer.buffer.as_entire_binding(),
+                        },
+                        // lod uniform
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: lod_buffers[target_mip].as_entire_binding(),
+                        },
+                    ],
+                },
+            ));
+        }
 
         let shader_path = std::env::current_dir()
             .unwrap()
@@ -506,37 +610,6 @@ impl BloomRenderContext {
                     multiview: None,
                 });
 
-        let input_texture_view = input_texture.create_view(&wgpu::TextureViewDescriptor {
-            format: Some(wgpu::TextureFormat::Rgba32Float),
-            ..Default::default()
-        });
-
-        let input_texture_sampler = render_state
-            .device
-            .create_sampler(&wgpu::SamplerDescriptor {
-                label: Some("Bloom Downsample Input Texture Sampler"),
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Linear,
-                ..Default::default()
-            });
-
-        let mut downsample_texture_views = Vec::with_capacity(mip_levels as usize);
-
-        for lod in 0..mip_levels {
-            downsample_texture_views.push(downsample_texture.create_view(
-                &wgpu::TextureViewDescriptor {
-                    format: Some(wgpu::TextureFormat::Rgba32Float),
-                    base_mip_level: lod,
-                    mip_level_count: Some(1),
-                    ..Default::default()
-                },
-            ));
-        }
-
         let upsample_texture = render_state
             .device
             .create_texture(&wgpu::TextureDescriptor {
@@ -573,6 +646,19 @@ impl BloomRenderContext {
                     border_color: None,
                 });
 
+        let mut upsample_texture_views = Vec::with_capacity(mip_levels as usize);
+
+        for target_mip in 0..mip_levels {
+            upsample_texture_views.push(upsample_texture.create_view(
+                &wgpu::TextureViewDescriptor {
+                    format: Some(wgpu::TextureFormat::Rgba32Float),
+                    base_mip_level: target_mip,
+                    mip_level_count: Some(1),
+                    ..Default::default()
+                },
+            ));
+        }
+
         let first_upsample_texture_bind_group_layout = render_state
             .device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -596,6 +682,27 @@ impl BloomRenderContext {
                     },
                 ],
             });
+
+        let first_upsample_texture_bind_group =
+            render_state
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("First Bloom Upsample Pass Texture Bind Group"),
+                    layout: &first_upsample_texture_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(
+                                // We're reading in the last mip of the downsample pass to begin the upsample process
+                                &downsample_texture_views[mip_levels as usize - 1],
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&downsample_texture_sampler),
+                        },
+                    ],
+                });
 
         let shader_path = std::env::current_dir()
             .unwrap()
@@ -768,15 +875,40 @@ impl BloomRenderContext {
                     multiview: None,
                 });
 
-        let mut upsample_texture_views = Vec::with_capacity(mip_levels as usize);
+        let mut upsample_texture_bind_groups = Vec::with_capacity(mip_levels as usize);
 
-        for lod in 0..(mip_levels) {
-            upsample_texture_views.push(upsample_texture.create_view(
-                &wgpu::TextureViewDescriptor {
-                    format: Some(wgpu::TextureFormat::Rgba32Float),
-                    base_mip_level: lod,
-                    mip_level_count: Some(1),
-                    ..Default::default()
+        for target_mip in (0..(mip_levels as usize - 1)) {
+            upsample_texture_bind_groups.push(render_state.device.create_bind_group(
+                &wgpu::BindGroupDescriptor {
+                    label: Some(&format!(
+                        "Bloom Upsample Bind Group (target_mip = {})",
+                        target_mip
+                    )),
+                    layout: &upsample_texture_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(
+                                // Sample current mip + 1...
+                                &upsample_texture_views[target_mip + 1],
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&upsample_texture_sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::TextureView(
+                                // ...and merge with corresponding mip of downsample texture
+                                &downsample_texture_views[target_mip],
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: wgpu::BindingResource::Sampler(&downsample_texture_sampler),
+                        },
+                    ],
                 },
             ));
         }
@@ -939,22 +1071,16 @@ impl BloomRenderContext {
 
         Self {
             downsample_pipeline,
-            downsample_texture_bind_group_layout,
+            downsample_texture_bind_groups,
             downsample_texture,
-
-            input_texture_view,
-            input_texture_sampler,
-            downsample_texture_sampler,
             downsample_texture_views,
 
             first_upsample_pipeline,
-            first_upsample_texture_bind_group_layout,
+            first_upsample_texture_bind_group,
             upsample_pipeline,
-            upsample_texture_bind_group_layout,
+            upsample_texture_bind_groups,
             upsample_texture,
-
             upsample_texture_views,
-            upsample_texture_sampler,
 
             bloom_texture,
             merge_pipeline,
@@ -966,94 +1092,10 @@ impl BloomRenderContext {
 
     pub fn draw_bloom_downsample(
         &self,
-        render_state: &RenderState,
         fullscreen_quad: &FullscreenQuad,
-        camera_buffer: &CameraBuffer,
         encoder: &mut wgpu::CommandEncoder,
     ) {
         for target_mip in 0..self.mip_levels as usize {
-            let buffer =
-                render_state
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!(
-                            "Bloom Downsample Lod Buffer (target_mip = {})",
-                            target_mip
-                        )),
-                        contents: bytemuck::cast_slice(&[target_mip as u32]),
-                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    });
-
-            let bind_group = if target_mip == 0 {
-                render_state
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some(&format!(
-                            "Bloom Downsample Bind Group (target_mip = {})",
-                            target_mip
-                        )),
-                        layout: &self.downsample_texture_bind_group_layout,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::TextureView(
-                                    &self.input_texture_view,
-                                ),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: wgpu::BindingResource::Sampler(
-                                    &self.input_texture_sampler,
-                                ),
-                            },
-                            // Camera uniform
-                            wgpu::BindGroupEntry {
-                                binding: 2,
-                                resource: camera_buffer.buffer.as_entire_binding(),
-                            },
-                            // lod uniform
-                            wgpu::BindGroupEntry {
-                                binding: 3,
-                                resource: buffer.as_entire_binding(),
-                            },
-                        ],
-                    })
-            } else {
-                render_state
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some(&format!(
-                            "Bloom Downsample Bind Group (target_mip = {})",
-                            target_mip
-                        )),
-                        layout: &self.downsample_texture_bind_group_layout,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::TextureView(
-                                    &self.downsample_texture_views[target_mip - 1],
-                                ),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: wgpu::BindingResource::Sampler(
-                                    &self.downsample_texture_sampler,
-                                ),
-                            },
-                            // Camera uniform
-                            wgpu::BindGroupEntry {
-                                binding: 2,
-                                resource: camera_buffer.buffer.as_entire_binding(),
-                            },
-                            // lod uniform
-                            wgpu::BindGroupEntry {
-                                binding: 3,
-                                resource: buffer.as_entire_binding(),
-                            },
-                        ],
-                    })
-            };
-
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some(&format!(
                     "Bloom Downsample Render Pass (target_mip = {})",
@@ -1073,7 +1115,7 @@ impl BloomRenderContext {
             });
 
             render_pass.set_pipeline(&self.downsample_pipeline);
-            render_pass.set_bind_group(0, &bind_group, &[]);
+            render_pass.set_bind_group(0, &self.downsample_texture_bind_groups[target_mip], &[]);
 
             render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
             render_pass.set_index_buffer(
@@ -1087,33 +1129,9 @@ impl BloomRenderContext {
 
     pub fn draw_bloom_upsample(
         &self,
-        render_state: &RenderState,
         fullscreen_quad: &FullscreenQuad,
         encoder: &mut wgpu::CommandEncoder,
     ) {
-        let upsample_first_texture_bind_group =
-            render_state
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("First Bloom Upsample Pass Texture Bind Group"),
-                    layout: &self.first_upsample_texture_bind_group_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(
-                                // We're reading in the last mip of the downsample pass to begin the upsample process
-                                &self.downsample_texture_views[self.mip_levels as usize - 1],
-                            ),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(
-                                &self.downsample_texture_sampler,
-                            ),
-                        },
-                    ],
-                });
-
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("First Bloom Upsample Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1130,7 +1148,7 @@ impl BloomRenderContext {
         });
 
         render_pass.set_pipeline(&self.first_upsample_pipeline);
-        render_pass.set_bind_group(0, &upsample_first_texture_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.first_upsample_texture_bind_group, &[]);
 
         render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
         render_pass.set_index_buffer(
@@ -1143,44 +1161,6 @@ impl BloomRenderContext {
         drop(render_pass);
 
         for target_mip in (0..(self.mip_levels as usize - 1)).rev() {
-            let bind_group = render_state
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some(&format!(
-                        "Bloom Upsample Bind Group (target_mip = {})",
-                        target_mip
-                    )),
-                    layout: &self.upsample_texture_bind_group_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(
-                                // Sample current mip + 1...
-                                &self.upsample_texture_views[target_mip + 1],
-                            ),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(
-                                &self.upsample_texture_sampler,
-                            ),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 2,
-                            resource: wgpu::BindingResource::TextureView(
-                                // ...and merge with corresponding mip of downsample texture
-                                &self.downsample_texture_views[target_mip],
-                            ),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 3,
-                            resource: wgpu::BindingResource::Sampler(
-                                &self.downsample_texture_sampler,
-                            ),
-                        },
-                    ],
-                });
-
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some(&format!(
                     "Bloom Upsample Render Pass (target_mip = {})",
@@ -1200,7 +1180,7 @@ impl BloomRenderContext {
             });
 
             render_pass.set_pipeline(&self.upsample_pipeline);
-            render_pass.set_bind_group(0, &bind_group, &[]);
+            render_pass.set_bind_group(0, &self.upsample_texture_bind_groups[target_mip], &[]);
 
             render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
             render_pass.set_index_buffer(
@@ -1258,11 +1238,13 @@ impl BloomRenderContext {
         render_state: Res<RenderState>,
         fullscreen_quad: Res<FullscreenQuad>,
         raytrace_render_context: Res<RaytraceRenderContext>,
+        camera_buffer: Res<CameraBuffer>,
     ) {
         let bloom_render_context = BloomRenderContext::new(
             &render_state,
             &fullscreen_quad,
             &raytrace_render_context.color_texture,
+            &camera_buffer,
             7,
         );
         commands.insert_resource(bloom_render_context);
@@ -1284,6 +1266,7 @@ impl BloomRenderContext {
                 &render_state,
                 &fullscreen_quad,
                 &raytrace_render_context.color_texture,
+                &camera_buffer,
                 7,
             );
             log::info!("Bloom render context recreated");
@@ -1294,23 +1277,15 @@ impl BloomRenderContext {
                 &render_state,
                 &fullscreen_quad,
                 &raytrace_render_context.color_texture,
+                &camera_buffer,
                 7,
             );
             log::info!("Bloom render context recreated");
         }
 
-        bloom_render_context.draw_bloom_downsample(
-            &render_state,
-            &fullscreen_quad,
-            &camera_buffer,
-            &mut command_encoder_resource,
-        );
+        bloom_render_context.draw_bloom_downsample(&fullscreen_quad, &mut command_encoder_resource);
 
-        bloom_render_context.draw_bloom_upsample(
-            &render_state,
-            &fullscreen_quad,
-            &mut command_encoder_resource,
-        );
+        bloom_render_context.draw_bloom_upsample(&fullscreen_quad, &mut command_encoder_resource);
 
         bloom_render_context.draw_bloom_merge(&fullscreen_quad, &mut command_encoder_resource);
     }
