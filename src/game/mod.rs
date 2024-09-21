@@ -29,6 +29,8 @@ fn init_window() -> (EventLoop<()>, Arc<Window>) {
         .unwrap();
     window.set_cursor_visible(false);
 
+    window.set_maximized(true);
+
     let window = Arc::new(window);
 
     (event_loop, window)
