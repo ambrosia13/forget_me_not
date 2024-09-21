@@ -1,6 +1,5 @@
 use crate::game::camera::CameraBuffer;
 use crate::game::object::ObjectsBuffer;
-use crate::game::render::world::SolidTerrainRenderContext;
 use crate::game::vertex;
 use crate::render_state::{
     CommandEncoderResource, RenderState, SurfaceTextureResource, WindowResizeEvent,
@@ -877,7 +876,7 @@ impl BloomRenderContext {
 
         let mut upsample_texture_bind_groups = Vec::with_capacity(mip_levels as usize);
 
-        for target_mip in (0..(mip_levels as usize - 1)) {
+        for target_mip in 0..(mip_levels as usize - 1) {
             upsample_texture_bind_groups.push(render_state.device.create_bind_group(
                 &wgpu::BindGroupDescriptor {
                     label: Some(&format!(
@@ -1250,6 +1249,7 @@ impl BloomRenderContext {
         commands.insert_resource(bloom_render_context);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         render_state: Res<RenderState>,
         fullscreen_quad: Res<FullscreenQuad>,

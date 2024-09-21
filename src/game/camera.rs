@@ -29,6 +29,7 @@ impl Camera {
         Vec4::new(0.0, 0.0, 0.0, 1.0),
     );
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         position: Vec3,
         rotation: Quat,

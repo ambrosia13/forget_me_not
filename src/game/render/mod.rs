@@ -1,10 +1,4 @@
-use std::{collections::HashMap, marker::PhantomData, path::Path};
-
 use bevy_ecs::prelude::*;
-use post::FullscreenQuad;
-use wgpu::util::DeviceExt;
-
-use crate::render_state::RenderState;
 
 pub mod post;
 pub mod world;

@@ -6,16 +6,11 @@ use derived_deref::Deref;
 use glam::Vec3;
 use winit::keyboard::KeyCode;
 
-use crate::render_state::RenderState;
-
 use super::{
-    camera::{Camera, CameraBuffer},
-    input::{Input, KeyboardInput},
-    object::{Objects, ObjectsBuffer, Sphere},
-    render::{
-        post::{FullscreenQuad, RaytraceRenderContext},
-        ReloadRenderContextEvent,
-    },
+    camera::Camera,
+    input::KeyboardInput,
+    object::{Objects, Sphere},
+    render::ReloadRenderContextEvent,
 };
 
 pub struct GameCommandArgs<'a> {
@@ -144,6 +139,12 @@ impl GameCommands {
 
     pub fn pop(&self) -> Option<GameCommand> {
         self.queue.pop()
+    }
+}
+
+impl Default for GameCommands {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

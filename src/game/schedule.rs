@@ -5,7 +5,6 @@ use crate::game::{camera, command, event, input, render};
 use crate::render_state;
 
 use super::object;
-use super::render::post::RaytraceRenderContext;
 
 /*
     Execution order:

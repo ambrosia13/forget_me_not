@@ -11,8 +11,6 @@ use crate::game::input::MouseMotion;
 use crate::render_state::{LastFrameInstant, RenderState, WindowResizeEvent};
 use bevy_ecs::prelude::World;
 use command::{GameCommand, GameCommands, GameCommandsResource};
-use glam::Vec3;
-use object::Sphere;
 use std::sync::Arc;
 use winit::event::{DeviceEvent, Event, WindowEvent};
 use winit::event_loop::EventLoop;
