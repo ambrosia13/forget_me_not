@@ -27,7 +27,7 @@ var<uniform> camera: CameraUniform;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    var color = textureSampleLevel(color_texture, color_sampler, in.uv, 5.0);
+    var color = textureSample(color_texture, color_sampler, in.uv);
 
     let screen_space_pos = vec3(in.texcoord, 1.0);
     let clip_space_pos = screen_space_pos * 2.0 - 1.0;

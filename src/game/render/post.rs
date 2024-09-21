@@ -345,9 +345,10 @@ pub struct BloomRenderContext {
     pub upsample_texture_sampler: wgpu::Sampler,
 
     // merge to final image
-    // pub bloom_texture: wgpu::Texture,
-    // pub merge_pipeline: wgpu::RenderPipeline,
-    // pub merge_texture_bind_group: wgpu::BindGroup,
+    pub bloom_texture: wgpu::Texture,
+    pub merge_pipeline: wgpu::RenderPipeline,
+    pub merge_texture_bind_group: wgpu::BindGroup,
+
     pub mip_levels: u32,
 }
 
@@ -758,6 +759,162 @@ impl BloomRenderContext {
             ));
         }
 
+        let bloom_texture = render_state
+            .device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("Bloom Color Texture"),
+                size: wgpu::Extent3d {
+                    width: render_state.size.width,
+                    height: render_state.size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba32Float,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+
+        let merge_texture_bind_group_layout =
+            render_state
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Bloom Merge Pass Texture Bind Group Layout"),
+                    entries: &[
+                        // Scene color
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                        // Bloom upsample color
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                });
+
+        let merge_texture_bind_group =
+            render_state
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Bloom Merge Pass Texture Bind Group"),
+                    layout: &merge_texture_bind_group_layout,
+                    entries: &[
+                        // input texture
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&input_texture_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&input_texture_sampler),
+                        },
+                        // upsample texture
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::TextureView(
+                                // we want to read from the fully upsampled bloom image
+                                &upsample_texture_views[0],
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: wgpu::BindingResource::Sampler(&upsample_texture_sampler),
+                        },
+                    ],
+                });
+
+        let shader_path = std::env::current_dir()
+            .unwrap()
+            .join("assets/bloom_merge.wgsl");
+
+        // todo: fallback shader
+        let shader_src = std::fs::read_to_string(shader_path).unwrap();
+
+        let fragment_shader_module =
+            render_state
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("Bloom Merge Pass Shader Module"),
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(shader_src)),
+                });
+
+        let merge_pipeline_layout =
+            render_state
+                .device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Bloom Merge Pass Pipeline Layout"),
+                    bind_group_layouts: &[&merge_texture_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+        let merge_pipeline =
+            render_state
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("Bloom Merge Pass Render Pipeline"),
+                    layout: Some(&merge_pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &fullscreen_quad.vertex_shader_module,
+                        entry_point: "vertex",
+                        compilation_options: Default::default(),
+                        buffers: &[vertex::FrameVertex::LAYOUT],
+                    },
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        strip_index_format: None,
+                        front_face: wgpu::FrontFace::Ccw,
+                        cull_mode: Some(wgpu::Face::Back),
+                        unclipped_depth: false,
+                        polygon_mode: wgpu::PolygonMode::Fill,
+                        conservative: false,
+                    },
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState {
+                        count: 1,
+                        mask: !0,
+                        alpha_to_coverage_enabled: false,
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &fragment_shader_module,
+                        entry_point: "fragment",
+                        compilation_options: Default::default(),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: wgpu::TextureFormat::Rgba32Float,
+                            blend: None,
+                            write_mask: wgpu::ColorWrites::all(),
+                        })],
+                    }),
+                    multiview: None,
+                });
+
         Self {
             downsample_pipeline,
             downsample_texture_bind_group_layout,
@@ -776,6 +933,10 @@ impl BloomRenderContext {
 
             upsample_texture_views,
             upsample_texture_sampler,
+
+            bloom_texture,
+            merge_pipeline,
+            merge_texture_bind_group,
 
             mip_levels,
         }
@@ -996,6 +1157,47 @@ impl BloomRenderContext {
         }
     }
 
+    pub fn draw_bloom_merge(
+        &self,
+        fullscreen_quad: &FullscreenQuad,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        let bloom_texture_view = self
+            .bloom_texture
+            .create_view(&wgpu::TextureViewDescriptor {
+                format: Some(wgpu::TextureFormat::Rgba32Float),
+                base_mip_level: 0,
+                mip_level_count: None,
+                ..Default::default()
+            });
+
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Bloom Merge Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &bloom_texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&self.merge_pipeline);
+        render_pass.set_bind_group(0, &self.merge_texture_bind_group, &[]);
+
+        render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(
+            fullscreen_quad.index_buffer.slice(..),
+            wgpu::IndexFormat::Uint16,
+        );
+
+        render_pass.draw_indexed(0..vertex::FrameVertex::INDICES.len() as u32, 0, 0..1);
+    }
+
     pub fn init(
         mut commands: Commands,
         render_state: Res<RenderState>,
@@ -1052,6 +1254,8 @@ impl BloomRenderContext {
             &fullscreen_quad,
             &mut command_encoder_resource,
         );
+
+        bloom_render_context.draw_bloom_merge(&fullscreen_quad, &mut command_encoder_resource);
     }
 }
 
@@ -1071,11 +1275,7 @@ impl FinalRenderContext {
         camera_buffer: &CameraBuffer,
     ) -> Self {
         let input_color_texture_view =
-            input_color_texture.create_view(&wgpu::TextureViewDescriptor {
-                base_mip_level: 0,
-                mip_level_count: Some(input_color_texture.mip_level_count()),
-                ..Default::default()
-            });
+            input_color_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let input_color_texture_sampler =
             render_state
@@ -1290,7 +1490,7 @@ impl FinalRenderContext {
             &render_state,
             &render_state.surface.get_current_texture().unwrap(),
             &fullscreen_quad,
-            &bloom_render_context.downsample_texture,
+            &bloom_render_context.bloom_texture,
             &camera_buffer,
         );
 
@@ -1314,7 +1514,7 @@ impl FinalRenderContext {
                 &render_state,
                 &surface_texture_resource,
                 &fullscreen_quad,
-                &bloom_render_context.downsample_texture,
+                &bloom_render_context.bloom_texture,
                 &camera_buffer,
             );
         }
@@ -1324,7 +1524,7 @@ impl FinalRenderContext {
                 &render_state,
                 &surface_texture_resource,
                 &fullscreen_quad,
-                &bloom_render_context.downsample_texture,
+                &bloom_render_context.bloom_texture,
                 &camera_buffer,
             );
         }

@@ -198,7 +198,7 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
 }
 
 fn sky(ray: Ray) -> vec3<f32> {
-    return mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
+    return 0.01 * mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
 }
 
 fn get_random_sphere() -> Sphere {

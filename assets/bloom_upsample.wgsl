@@ -16,7 +16,6 @@ var downsample_texture: texture_2d<f32>;
 @group(0) @binding(3)
 var downsample_sampler: sampler;
 
-
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let prior = textureSample(previous_upsample_mip_texture, upsample_sampler, in.uv);
