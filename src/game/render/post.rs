@@ -417,6 +417,28 @@ impl BloomRenderContext {
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
+                        // Camera uniform
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        // Lod uniform
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                 });
 
@@ -946,9 +968,22 @@ impl BloomRenderContext {
         &self,
         render_state: &RenderState,
         fullscreen_quad: &FullscreenQuad,
+        camera_buffer: &CameraBuffer,
         encoder: &mut wgpu::CommandEncoder,
     ) {
         for target_mip in 0..self.mip_levels as usize {
+            let buffer =
+                render_state
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some(&format!(
+                            "Bloom Downsample Lod Buffer (target_mip = {})",
+                            target_mip
+                        )),
+                        contents: bytemuck::cast_slice(&[target_mip as u32]),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    });
+
             let bind_group = if target_mip == 0 {
                 render_state
                     .device
@@ -970,6 +1005,16 @@ impl BloomRenderContext {
                                 resource: wgpu::BindingResource::Sampler(
                                     &self.input_texture_sampler,
                                 ),
+                            },
+                            // Camera uniform
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: camera_buffer.buffer.as_entire_binding(),
+                            },
+                            // lod uniform
+                            wgpu::BindGroupEntry {
+                                binding: 3,
+                                resource: buffer.as_entire_binding(),
                             },
                         ],
                     })
@@ -994,6 +1039,16 @@ impl BloomRenderContext {
                                 resource: wgpu::BindingResource::Sampler(
                                     &self.downsample_texture_sampler,
                                 ),
+                            },
+                            // Camera uniform
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: camera_buffer.buffer.as_entire_binding(),
+                            },
+                            // lod uniform
+                            wgpu::BindGroupEntry {
+                                binding: 3,
+                                resource: buffer.as_entire_binding(),
                             },
                         ],
                     })
@@ -1217,6 +1272,7 @@ impl BloomRenderContext {
         render_state: Res<RenderState>,
         fullscreen_quad: Res<FullscreenQuad>,
 
+        camera_buffer: Res<CameraBuffer>,
         mut bloom_render_context: ResMut<BloomRenderContext>,
         raytrace_render_context: Res<RaytraceRenderContext>,
         mut command_encoder_resource: ResMut<CommandEncoderResource>,
@@ -1246,6 +1302,7 @@ impl BloomRenderContext {
         bloom_render_context.draw_bloom_downsample(
             &render_state,
             &fullscreen_quad,
+            &camera_buffer,
             &mut command_encoder_resource,
         );
 
