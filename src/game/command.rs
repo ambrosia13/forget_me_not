@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use bevy_ecs::prelude::*;
 use crossbeam_queue::SegQueue;
@@ -19,7 +19,7 @@ pub struct GameCommandArgs<'a> {
 }
 
 impl<'a> GameCommandArgs<'a> {
-    pub fn from_input(input: &'a str) -> GameCommandArgs<'a> {
+    pub fn from_input(input: &'a str) -> Self {
         Self {
             current: 0,
             strs: input.split_ascii_whitespace().collect(),
@@ -36,37 +36,27 @@ impl<'a> GameCommandArgs<'a> {
         self.strs.get(self.current - 1).copied()
     }
 
-    pub fn next_i32(&mut self) -> Option<i32> {
+    fn next<T: Copy + FromStr>(&mut self) -> Option<T> {
         let next = self.strs.get(self.current)?;
 
-        let Ok(next) = next.parse::<i32>() else {
+        let Ok(next) = next.parse::<T>() else {
             return None;
         };
 
         self.current += 1;
         Some(next)
+    }
+
+    pub fn next_i32(&mut self) -> Option<i32> {
+        self.next::<i32>()
     }
 
     pub fn next_f32(&mut self) -> Option<f32> {
-        let next = self.strs.get(self.current)?;
-
-        let Ok(next) = next.parse::<f32>() else {
-            return None;
-        };
-
-        self.current += 1;
-        Some(next)
+        self.next::<f32>()
     }
 
     pub fn next_bool(&mut self) -> Option<bool> {
-        let next = self.strs.get(self.current)?;
-
-        let Ok(next) = next.parse::<bool>() else {
-            return None;
-        };
-
-        self.current += 1;
-        Some(next)
+        self.next::<bool>()
     }
 
     pub fn num_args(&self) -> usize {
