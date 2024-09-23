@@ -56,9 +56,11 @@ impl FullscreenQuad {
 #[derive(Resource)]
 pub struct RaytraceRenderContext {
     pub color_texture: wgpu::Texture,
+    pub color_texture_copy: wgpu::Texture,
     pub pipeline: wgpu::RenderPipeline,
     pub camera_uniform_bind_group: wgpu::BindGroup,
     pub objects_uniform_bind_group: wgpu::BindGroup,
+    pub texture_bind_group: wgpu::BindGroup,
 }
 
 impl RaytraceRenderContext {
@@ -70,23 +72,47 @@ impl RaytraceRenderContext {
     ) -> Self {
         let color_texture_format = wgpu::TextureFormat::Rgba32Float;
 
-        let color_texture = render_state
+        let color_texture_desc = wgpu::TextureDescriptor {
+            label: Some("Raytrace Pass Color Texture"),
+            size: wgpu::Extent3d {
+                width: render_state.size.width,
+                height: render_state.size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: color_texture_format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        };
+
+        let color_texture = render_state.device.create_texture(&color_texture_desc);
+        let color_texture_copy = render_state
             .device
             .create_texture(&wgpu::TextureDescriptor {
-                label: Some("Raytrace Pass Color Texture"),
-                size: wgpu::Extent3d {
-                    width: render_state.size.width,
-                    height: render_state.size.height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: color_texture_format,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
+                label: Some("Raytrace Pass Color Texture Copy"),
+                ..color_texture_desc
             });
+
+        let color_texture_copy_view =
+            color_texture_copy.create_view(&wgpu::TextureViewDescriptor::default());
+        let color_texture_copy_sampler =
+            render_state
+                .device
+                .create_sampler(&wgpu::SamplerDescriptor {
+                    label: Some("Color Texture Copy Sampler"),
+                    address_mode_u: wgpu::AddressMode::ClampToEdge,
+                    address_mode_v: wgpu::AddressMode::ClampToEdge,
+                    address_mode_w: wgpu::AddressMode::ClampToEdge,
+                    mag_filter: wgpu::FilterMode::Linear,
+                    min_filter: wgpu::FilterMode::Linear,
+                    mipmap_filter: wgpu::FilterMode::Linear,
+                    ..Default::default()
+                });
 
         let camera_uniform_bind_group_layout =
             render_state
@@ -146,6 +172,49 @@ impl RaytraceRenderContext {
                     }],
                 });
 
+        let texture_bind_group_layout =
+            render_state
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Raytrace Pass Texture Bind Group Layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                });
+
+        let texture_bind_group =
+            render_state
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Raytrace Pass Texture Bind Group"),
+                    layout: &texture_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&color_texture_copy_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&color_texture_copy_sampler),
+                        },
+                    ],
+                });
+
         let pipeline_layout =
             render_state
                 .device
@@ -154,6 +223,7 @@ impl RaytraceRenderContext {
                     bind_group_layouts: &[
                         &camera_uniform_bind_group_layout,
                         &objects_uniform_bind_group_layout,
+                        &texture_bind_group_layout,
                     ],
                     push_constant_ranges: &[],
                 });
@@ -220,9 +290,11 @@ impl RaytraceRenderContext {
 
         Self {
             color_texture,
+            color_texture_copy,
             pipeline,
             camera_uniform_bind_group,
             objects_uniform_bind_group,
+            texture_bind_group,
         }
     }
 
@@ -238,6 +310,22 @@ impl RaytraceRenderContext {
     }
 
     pub fn draw(&self, fullscreen_quad: &FullscreenQuad, encoder: &mut wgpu::CommandEncoder) {
+        encoder.copy_texture_to_texture(
+            wgpu::ImageCopyTextureBase {
+                texture: &self.color_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyTextureBase {
+                texture: &self.color_texture_copy,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            self.color_texture.size(),
+        );
+
         let color_texture_view = self
             .color_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -261,6 +349,7 @@ impl RaytraceRenderContext {
 
         render_pass.set_bind_group(0, &self.camera_uniform_bind_group, &[]);
         render_pass.set_bind_group(1, &self.objects_uniform_bind_group, &[]);
+        render_pass.set_bind_group(2, &self.texture_bind_group, &[]);
 
         render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
         render_pass.set_index_buffer(

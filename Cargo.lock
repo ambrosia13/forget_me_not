@@ -209,10 +209,10 @@ checksum = "98e612a8e7962ead849e370f3a7e972b88df879ced05cd9dad6a0286d14650cf"
 dependencies = [
  "async-channel",
  "bevy_ecs_macros",
- "bevy_ptr",
- "bevy_reflect",
+ "bevy_ptr 0.13.2",
+ "bevy_reflect 0.13.2",
  "bevy_tasks",
- "bevy_utils",
+ "bevy_utils 0.13.2",
  "downcast-rs",
  "fixedbitset",
  "rustc-hash",
@@ -227,7 +227,7 @@ version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "807b5106c3410e58f4f523b55ea3c071e2a09e31e9510f3c22021c6a04732b5b"
 dependencies = [
- "bevy_macro_utils",
+ "bevy_macro_utils 0.13.2",
  "proc-macro2",
  "quote",
  "syn 2.0.66",
@@ -243,7 +243,19 @@ dependencies = [
  "quote",
  "rustc-hash",
  "syn 2.0.66",
- "toml_edit",
+ "toml_edit 0.21.1",
+]
+
+[[package]]
+name = "bevy_macro_utils"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfc65e570012e64a21f3546df68591aaede8349e6174fb500071677f54f06630"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.66",
+ "toml_edit 0.22.16",
 ]
 
 [[package]]
@@ -253,17 +265,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8050e2869fe341db6874203b5a01ff12673807a2c7c80cb829f6c7bea6997268"
 
 [[package]]
+name = "bevy_ptr"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61baa1bdc1f4a7ac2c18217570a7cc04e1cd54d38456e91782f0371c79afe0a8"
+
+[[package]]
 name = "bevy_reflect"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccbd7de21d586457a340a0962ad0747dc5098ff925eb6b27a918c4bdd8252f7b"
 dependencies = [
- "bevy_ptr",
- "bevy_reflect_derive",
- "bevy_utils",
+ "bevy_ptr 0.13.2",
+ "bevy_reflect_derive 0.13.2",
+ "bevy_utils 0.13.2",
  "downcast-rs",
  "erased-serde",
  "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "bevy_reflect"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2508785a4a5809f25a237eec4fee2c91a4dbcf81324b2bbc2d6c52629e603781"
+dependencies = [
+ "bevy_ptr 0.14.2",
+ "bevy_reflect_derive 0.14.2",
+ "bevy_utils 0.14.2",
+ "downcast-rs",
+ "erased-serde",
+ "glam",
+ "serde",
+ "smallvec",
  "thiserror",
 ]
 
@@ -273,7 +308,20 @@ version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ce33051bd49036d4a5a62aa3f2068672ec55f3ebe92aa0d003a341f15cc37ac"
 dependencies = [
- "bevy_macro_utils",
+ "bevy_macro_utils 0.13.2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.66",
+ "uuid",
+]
+
+[[package]]
+name = "bevy_reflect_derive"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "967d5da1882ec3bb3675353915d3da909cafac033cbf31e58727824a1ad2a288"
+dependencies = [
+ "bevy_macro_utils 0.14.2",
  "proc-macro2",
  "quote",
  "syn 2.0.66",
@@ -301,7 +349,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a9f845a985c00e0ee8dc2d8af3f417be925fb52aad4bda5b96e2e58a2b4d2eb"
 dependencies = [
  "ahash",
- "bevy_utils_proc_macros",
+ "bevy_utils_proc_macros 0.13.2",
  "getrandom",
  "hashbrown",
  "nonmax",
@@ -310,7 +358,22 @@ dependencies = [
  "thiserror",
  "tracing",
  "uuid",
- "web-time",
+ "web-time 0.2.4",
+]
+
+[[package]]
+name = "bevy_utils"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffb0ec333b5965771153bd746f92ffd8aeeb9d008a8620ffd9ed474859381a5e"
+dependencies = [
+ "ahash",
+ "bevy_utils_proc_macros 0.14.2",
+ "getrandom",
+ "hashbrown",
+ "thread_local",
+ "tracing",
+ "web-time 1.1.0",
 ]
 
 [[package]]
@@ -318,6 +381,17 @@ name = "bevy_utils_proc_macros"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef158627f30503d5c18c20c60b444829f698d343516eeaf6eeee078c9a45163"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.66",
+]
+
+[[package]]
+name = "bevy_utils_proc_macros"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38f1ab8f2f6f58439d260081d89a42b02690e5fdd64f814edc9417d33fcf2857"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -756,6 +830,7 @@ name = "forget_me_not"
 version = "0.1.0"
 dependencies = [
  "bevy_ecs",
+ "bevy_reflect 0.14.2",
  "bytemuck",
  "crossbeam-queue",
  "derived-deref",
@@ -833,6 +908,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e05e7e6723e3455f4818c7b26e855439f7546cf617ef669d1adedb8669e5cb9"
 dependencies = [
  "bytemuck",
+ "serde",
 ]
 
 [[package]]
@@ -1379,7 +1455,7 @@ version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d37c51ca738a55da99dc0c4a34860fd675453b8b36209178c2249bb13651284"
 dependencies = [
- "toml_edit",
+ "toml_edit 0.21.1",
 ]
 
 [[package]]
@@ -1750,7 +1826,18 @@ checksum = "6a8534fd7f78b5405e860340ad6575217ce99f38d4d5c8f2442cb5ecb50090e1"
 dependencies = [
  "indexmap",
  "toml_datetime",
- "winnow",
+ "winnow 0.5.40",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.22.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "278f3d518e152219c994ce877758516bca5e118eaed6996192a774fb9fbf0788"
+dependencies = [
+ "indexmap",
+ "toml_datetime",
+ "winnow 0.6.18",
 ]
 
 [[package]]
@@ -2036,6 +2123,16 @@ name = "web-time"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa30049b1c872b72c89866d458eae9f20380ab280ffd1b1e18df2d3e2d98cfe0"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "web-time"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -2453,7 +2550,7 @@ dependencies = [
  "wayland-protocols",
  "wayland-protocols-plasma",
  "web-sys",
- "web-time",
+ "web-time 0.2.4",
  "windows-sys 0.48.0",
  "x11-dl",
  "x11rb",
@@ -2465,6 +2562,15 @@ name = "winnow"
 version = "0.5.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "winnow"
+version = "0.6.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68a9bda4691f099d435ad181000724da8e5899daa10713c2d432552b9ccd3a6f"
 dependencies = [
  "memchr",
 ]

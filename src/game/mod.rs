@@ -1,7 +1,7 @@
-mod camera;
+pub mod camera;
 pub mod command;
 pub mod event;
-mod input;
+pub mod input;
 pub mod object;
 pub mod render;
 pub mod schedule;

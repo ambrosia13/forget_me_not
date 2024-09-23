@@ -3,45 +3,74 @@ use bytemuck::Zeroable;
 use glam::{Vec3, Vec4, Vec4Swizzles};
 use wgpu::util::DeviceExt;
 
-use crate::render_state::RenderState;
+use crate::{
+    render_state::RenderState,
+    util::buffer::{AsGpuBytes, GpuBytes},
+};
 
-#[repr(C)]
-#[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Sphere {
-    data: Vec4,
-    color: Vec4,
-    emission: Vec4,
+    center: Vec3,
+    radius: f32,
+    color: Vec3,
+    emission: Vec3,
 }
 
 impl Sphere {
     pub fn new(center: Vec3, radius: f32, color: Vec3, emission: Vec3) -> Self {
         Self {
-            data: Vec4::new(center.x, center.y, center.z, radius),
-            color: Vec4::new(color.x, color.y, color.z, 0.0),
-            emission: Vec4::new(emission.x, emission.y, emission.z, 0.0),
+            center,
+            radius,
+            color,
+            emission,
         }
     }
 
     pub fn center(&self) -> Vec3 {
-        self.data.xyz()
+        self.center
     }
 
     pub fn radius(&self) -> f32 {
-        self.data.w
+        self.radius
     }
 
     pub fn color(&self) -> Vec3 {
-        self.data.xyz()
+        self.color
+    }
+
+    pub fn emission(&self) -> Vec3 {
+        self.emission
     }
 }
 
-#[repr(C)]
-#[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+impl AsGpuBytes for Sphere {
+    fn as_gpu_bytes(&self) -> GpuBytes {
+        let mut buf = GpuBytes::new();
+
+        buf.write_vec3(self.center)
+            .write_f32(self.radius)
+            .write_vec3(self.color)
+            .write_vec3(self.emission)
+            .align();
+
+        buf
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Plane {
-    bleh: u32,
-    bleh_2: u32,
-    bleh_3: u32,
-    bleh_4: u32,
+    normal: Vec3,
+    point: Vec3,
+}
+
+impl AsGpuBytes for Plane {
+    fn as_gpu_bytes(&self) -> GpuBytes {
+        let mut buf = GpuBytes::new();
+
+        buf.write_vec3(self.normal).write_vec3(self.point).align();
+
+        buf
+    }
 }
 
 #[derive(Debug, Resource)]
@@ -52,10 +81,19 @@ pub struct Objects {
 
 impl Objects {
     pub fn init(mut commands: Commands) {
-        commands.insert_resource(Objects {
+        let mut objects = Objects {
             spheres: Vec::with_capacity(32),
             planes: Vec::with_capacity(32),
-        })
+        };
+
+        objects.push_sphere(Sphere::new(
+            Vec3::new(0.1, 0.4, 0.3),
+            0.2,
+            Vec3::new(0.5, 0.6, 0.7),
+            Vec3::new(0.9, 0.8, 1.0),
+        ));
+
+        commands.insert_resource(objects)
     }
 
     pub fn push_sphere(&mut self, sphere: Sphere) {
@@ -63,14 +101,12 @@ impl Objects {
     }
 }
 
-#[repr(C)]
-#[derive(Resource, Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Resource, Debug, Copy, Clone)]
 pub struct ObjectsUniform {
     spheres: [Sphere; 32],
     planes: [Plane; 32],
     num_spheres: u32,
     num_planes: u32,
-    _padding: u64,
 }
 
 impl ObjectsUniform {
@@ -78,16 +114,15 @@ impl ObjectsUniform {
     pub fn new() -> Self {
         Self {
             num_spheres: 0,
-            spheres: [Sphere::zeroed(); 32],
+            spheres: [Sphere::default(); 32],
             num_planes: 0,
-            planes: [Plane::zeroed(); 32],
-            _padding: 0,
+            planes: [Plane::default(); 32],
         }
     }
 
     pub fn from_objects(objects: &Objects) -> Self {
-        let mut spheres = [Sphere::zeroed(); 32];
-        let mut planes = [Plane::zeroed(); 32];
+        let mut spheres = [Sphere::default(); 32];
+        let mut planes = [Plane::default(); 32];
 
         for (i, &sphere) in objects.spheres.iter().enumerate() {
             spheres[i] = sphere;
@@ -101,7 +136,6 @@ impl ObjectsUniform {
             spheres,
             num_planes: objects.planes.len() as u32,
             planes,
-            _padding: 0,
         }
     }
 
@@ -111,6 +145,43 @@ impl ObjectsUniform {
 
     pub fn update(mut objects_uniform: ResMut<ObjectsUniform>, objects: Res<Objects>) {
         *objects_uniform = ObjectsUniform::from_objects(&objects);
+    }
+}
+
+impl AsGpuBytes for ObjectsUniform {
+    fn as_gpu_bytes(&self) -> GpuBytes {
+        let mut buf = GpuBytes::new();
+
+        buf.write_u32(self.num_spheres);
+        buf.write_u32(self.num_planes);
+
+        for sphere in &self.spheres {
+            buf.write_struct(sphere);
+        }
+
+        for plane in &self.planes {
+            buf.write_struct(plane);
+        }
+
+        buf.align();
+
+        // println!("Debugging");
+
+        // let slice = buf.as_slice();
+
+        // for i in (0..slice.len()).step_by(4) {
+        //     let u8s = &slice[i..(i + 4)];
+        //     let as_f32: &[f32] = bytemuck::cast_slice(u8s);
+
+        //     print!("{:?} ", as_f32);
+        //     if i != 0 && i % 16 == 12 {
+        //         println!()
+        //     }
+        // }
+
+        // println!("\n");
+
+        buf
     }
 }
 
@@ -130,7 +201,7 @@ impl ObjectsBuffer {
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Objects Uniform Buffer"),
-                    contents: bytemuck::cast_slice(&[*objects_uniform]),
+                    contents: bytemuck::cast_slice(objects_uniform.as_gpu_bytes().as_slice()),
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 }),
         })
@@ -144,7 +215,7 @@ impl ObjectsBuffer {
         render_state.queue.write_buffer(
             &objects_buffer.buffer,
             0,
-            bytemuck::cast_slice(&[*objects_uniform]),
+            bytemuck::cast_slice(objects_uniform.as_gpu_bytes().as_slice()),
         );
     }
 }

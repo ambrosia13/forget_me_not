@@ -13,32 +13,31 @@ struct CameraUniform {
     inverse_view_projection_matrix: mat4x4<f32>,
     view_matrix: mat4x4<f32>,
     inverse_view_matrix: mat4x4<f32>,
+    previous_view_projection_matrix: mat4x4<f32>,
     pos: vec3<f32>,
+    previous_pos: vec3<f32>,
     view_width: u32,
     view_height: u32,
     frame_count: u32,
-    padding_1: u32,
-    padding_2: u32,
 }
 
-struct PackedSphere {
-    data: vec4<f32>,
-    color: vec4<f32>,
-    emission: vec4<f32>,
+struct Sphere {
+    center: vec3<f32>,
+    radius: f32,
+    color: vec3<f32>,
+    emission: vec3<f32>,
 }
 
-struct PackedPlane {
-    bleh: u32,
-    bleh_2: u32,
-    bleh_3: u32,
-    bleh_4: u32,
+struct Plane {
+    normal: vec3<f32>,
+    point: vec3<f32>,
 }
 
 struct ObjectsUniform {
-    spheres: array<PackedSphere, 32>,
-    planes: array<PackedPlane, 32>,
     num_spheres: u32,
     num_planes: u32,
+    spheres: array<Sphere, 32>,
+    planes: array<Plane, 32>,
 }
 
 @group(0) @binding(0)
@@ -46,6 +45,12 @@ var<uniform> camera: CameraUniform;
 
 @group(1) @binding(0)
 var<uniform> objects: ObjectsUniform;
+
+@group(2) @binding(0)
+var previous_color_texture: texture_2d<f32>;
+
+@group(2) @binding(1)
+var previous_color_sampler: sampler;
 
 // NOISE ---------------------------
 
@@ -89,18 +94,7 @@ fn generate_cosine_vector_from_roughness(normal: vec3<f32>, roughness: f32) -> v
     return normalize(normal + generate_unit_vector() * roughness);
 }
 
-// NOISE ---------------------------
-
-fn unpack_sphere(data: PackedSphere) -> Sphere {
-    var sphere: Sphere;
-
-    sphere.center = data.data.xyz;
-    sphere.color = data.color.xyz;
-    sphere.radius = data.data.w;
-    sphere.emission = data.emission.xyz;
-
-    return sphere;
-}
+// END NOISE ---------------------------
 
 struct Ray {
     pos: vec3<f32>,
@@ -110,13 +104,6 @@ struct Ray {
 struct Material {
     albedo: vec3<f32>,
     emission: vec3<f32>,
-}
-
-struct Sphere {
-    center: vec3<f32>,
-    color: vec3<f32>,
-    emission: vec3<f32>,
-    radius: f32,
 }
 
 struct Hit {
@@ -198,11 +185,11 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
 }
 
 fn sky(ray: Ray) -> vec3<f32> {
-    return 0.01 * mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
+    return mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
 }
 
 fn get_random_sphere() -> Sphere {
-    return unpack_sphere(objects.spheres[next_u32() % objects.num_spheres]);
+    return objects.spheres[next_u32() % objects.num_spheres];
 }
 
 fn generate_ray_to_sphere(ray: Ray, sphere: Sphere) -> Ray {
@@ -212,16 +199,11 @@ fn generate_ray_to_sphere(ray: Ray, sphere: Sphere) -> Ray {
     return Ray(ray.pos, dir);
 }
 
-// fn pdf_sphere(ray: Ray, sphere: Sphere) -> f32 {
-//     let dist = distance(ray.pos, sphere.center);
-//     return TAU * (1.0 - dist / sqrt(dist * dist + sphere.radius * sphere.radius));
-// }
-
 fn raytrace(ray: Ray) -> Hit {
     var closest_hit: Hit;
 
     for (var i = 0u; i < objects.num_spheres; i++) {
-        let sphere = unpack_sphere(objects.spheres[i]);
+        let sphere = objects.spheres[i];
 
         let hit = ray_sphere_intersect(ray, sphere);
         closest_hit = merge_hit(closest_hit, hit);
@@ -242,28 +224,7 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
         var hit: Hit;
         var weight: f32 = 1.0 / TAU;
 
-        // if next_f32() > 1.0 && i != 0 {
-        //     let sphere = get_random_sphere();
-        //     let d = distance(current_ray.pos, sphere.center);
-
-        //     current_ray = generate_ray_to_sphere(current_ray, sphere);
-        //     weight = TAU * (1.0 - sqrt(d * d - sphere.radius * sphere.radius) / d) * dot(incoming_normal, current_ray.dir);
-        // }
-
-        // if next_f32() > 0.5 {
         hit = raytrace(current_ray);
-        // weight = 1.0;
-        // } else {
-        //     let sphere = get_random_sphere();
-        //     let ray_to_sphere = generate_ray_to_sphere(current_ray, sphere);
-        //     hit = raytrace(ray_to_sphere);
-
-        //     if incoming_normal.x == 10.0 {
-        //         weight = 0.0;
-        //     } else {
-        //         weight = max(0.0, dot(incoming_normal, ray_to_sphere.dir));
-        //     }
-        // }
 
         if !hit.success {
             // hit sky
@@ -280,27 +241,6 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
 
     return radiance;
 }
-
-// fn pathtrace(ray: Ray) -> vec3<f32> {
-//     let radiance = vec3(0.0);
-//     let throughput = vec3(1.0);
-
-//     let bounces = 4;
-
-//     for (var bounce = 0; bounce < bounces; bounce++) {
-//         let hit = raytrace(ray);
-
-//         if !hit.success {
-//             radiance += throughput * sky(ray);
-//             break;
-//         }
-
-//         let new_dir = generate_cosine_vector(hit.normal);
-//         let pdf = dot(hit.normal, new_dir) / PI;
-
-//         let brdf = vec3(1.0 / PI);
-//     }
-// }
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -319,23 +259,6 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     ray.pos = camera.pos;
     ray.dir = view_dir;
 
-    // var color = sky(ray);
-
-    var sphere: Sphere;
-    sphere.center = vec3(0.0, 0.0, 10.0);
-    sphere.radius = 0.5;
-
-    let light_dir = normalize(vec3(0.3, 0.9, -0.5));
-
-    // let hit = raytrace(ray);
-
-    // if hit.success {
-    //     color = hit.material.color * max(0.0, dot(hit.normal, light_dir));
-    // }
-
-    // let rng = init_rng(in.texcoord);
-    // let rng_ptr = &rng;
-
     var color = vec3(0.0);
 
     let rays = 5;
@@ -343,13 +266,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         color += pathtrace(ray) / f32(rays);
     }
 
-    // let color = pathtrace(ray);
+    let previous_color = textureSample(previous_color_texture, previous_color_sampler, in.uv);
+    color = mix(color, previous_color.rgb, 0.9);
 
-    // let slices = floor(in.texcoord.x * 10.0);
-    // if in.texcoord.y < 0.1 && f32(objects.num_spheres) >= slices {
-    //     color = vec3(0.0, 0.0, 1.0);
-    // }
+    color *= f32(objects.num_spheres) / 5.0;
 
-    return vec4(color, 1.0);
-    //return vec4(step(0.5, pow(next_f32(), 2.2)));
+    return vec4(color, previous_color.a + 1.0);
 }
