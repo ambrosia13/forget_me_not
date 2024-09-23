@@ -269,7 +269,5 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let previous_color = textureSample(previous_color_texture, previous_color_sampler, in.uv);
     color = mix(color, previous_color.rgb, 0.9);
 
-    color *= f32(objects.num_spheres) / 5.0;
-
     return vec4(color, previous_color.a + 1.0);
 }

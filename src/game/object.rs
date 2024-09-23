@@ -1,6 +1,5 @@
 use bevy_ecs::prelude::*;
-use bytemuck::Zeroable;
-use glam::{Vec3, Vec4, Vec4Swizzles};
+use glam::Vec3;
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -164,22 +163,6 @@ impl AsGpuBytes for ObjectsUniform {
         }
 
         buf.align();
-
-        // println!("Debugging");
-
-        // let slice = buf.as_slice();
-
-        // for i in (0..slice.len()).step_by(4) {
-        //     let u8s = &slice[i..(i + 4)];
-        //     let as_f32: &[f32] = bytemuck::cast_slice(u8s);
-
-        //     print!("{:?} ", as_f32);
-        //     if i != 0 && i % 16 == 12 {
-        //         println!()
-        //     }
-        // }
-
-        // println!("\n");
 
         buf
     }
