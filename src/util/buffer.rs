@@ -1,16 +1,16 @@
 use glam::{IVec2, IVec3, IVec4, Mat3, Mat4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
 
-pub trait AsGpuBytes {
-    fn as_gpu_bytes(&self) -> GpuBytes;
+pub trait AsGpuFormattedBytes {
+    fn as_gpu_bytes(&self) -> GpuFormattedBytes;
 }
 
 #[derive(Default)]
-pub struct GpuBytes {
+pub struct GpuFormattedBytes {
     bytes: Vec<u8>,
     alignment: usize,
 }
 
-impl GpuBytes {
+impl GpuFormattedBytes {
     pub fn new() -> Self {
         Self {
             bytes: Vec::new(),
@@ -109,7 +109,7 @@ impl GpuBytes {
         self
     }
 
-    pub fn write_struct<T: AsGpuBytes>(&mut self, data: &T) -> &mut Self {
+    pub fn write_struct<T: AsGpuFormattedBytes>(&mut self, data: &T) -> &mut Self {
         let data = data.as_gpu_bytes();
 
         self.write_slice(data.as_slice(), data.alignment);

@@ -4,7 +4,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{
     render_state::RenderState,
-    util::buffer::{AsGpuBytes, GpuBytes},
+    util::buffer::{AsGpuFormattedBytes, GpuFormattedBytes},
 };
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -42,9 +42,9 @@ impl Sphere {
     }
 }
 
-impl AsGpuBytes for Sphere {
-    fn as_gpu_bytes(&self) -> GpuBytes {
-        let mut buf = GpuBytes::new();
+impl AsGpuFormattedBytes for Sphere {
+    fn as_gpu_bytes(&self) -> GpuFormattedBytes {
+        let mut buf = GpuFormattedBytes::new();
 
         buf.write_vec3(self.center)
             .write_f32(self.radius)
@@ -75,9 +75,9 @@ impl Plane {
     }
 }
 
-impl AsGpuBytes for Plane {
-    fn as_gpu_bytes(&self) -> GpuBytes {
-        let mut buf = GpuBytes::new();
+impl AsGpuFormattedBytes for Plane {
+    fn as_gpu_bytes(&self) -> GpuFormattedBytes {
+        let mut buf = GpuFormattedBytes::new();
 
         buf.write_vec3(self.normal)
             .write_vec3(self.point)
@@ -161,9 +161,9 @@ impl ObjectsUniform {
     }
 }
 
-impl AsGpuBytes for ObjectsUniform {
-    fn as_gpu_bytes(&self) -> GpuBytes {
-        let mut buf = GpuBytes::new();
+impl AsGpuFormattedBytes for ObjectsUniform {
+    fn as_gpu_bytes(&self) -> GpuFormattedBytes {
+        let mut buf = GpuFormattedBytes::new();
 
         buf.write_u32(self.num_spheres);
         buf.write_u32(self.num_planes);
