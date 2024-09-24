@@ -60,13 +60,30 @@ impl AsGpuBytes for Sphere {
 pub struct Plane {
     normal: Vec3,
     point: Vec3,
+    color: Vec3,
+    emission: Vec3,
+}
+
+impl Plane {
+    pub fn new(normal: Vec3, point: Vec3, color: Vec3, emission: Vec3) -> Self {
+        Self {
+            normal,
+            point,
+            color,
+            emission,
+        }
+    }
 }
 
 impl AsGpuBytes for Plane {
     fn as_gpu_bytes(&self) -> GpuBytes {
         let mut buf = GpuBytes::new();
 
-        buf.write_vec3(self.normal).write_vec3(self.point).align();
+        buf.write_vec3(self.normal)
+            .write_vec3(self.point)
+            .write_vec3(self.color)
+            .write_vec3(self.emission)
+            .align();
 
         buf
     }
@@ -80,23 +97,20 @@ pub struct Objects {
 
 impl Objects {
     pub fn init(mut commands: Commands) {
-        let mut objects = Objects {
+        let objects = Objects {
             spheres: Vec::with_capacity(32),
             planes: Vec::with_capacity(32),
         };
-
-        objects.push_sphere(Sphere::new(
-            Vec3::new(0.1, 0.4, 0.3),
-            0.2,
-            Vec3::new(0.5, 0.6, 0.7),
-            Vec3::new(0.9, 0.8, 1.0),
-        ));
 
         commands.insert_resource(objects)
     }
 
     pub fn push_sphere(&mut self, sphere: Sphere) {
         self.spheres.insert(0, sphere);
+    }
+
+    pub fn push_plane(&mut self, plane: Plane) {
+        self.planes.insert(0, plane);
     }
 }
 

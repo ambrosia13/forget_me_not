@@ -19,7 +19,9 @@ struct CameraUniform {
     view_width: u32,
     view_height: u32,
     frame_count: u32,
+    should_accumulate: u32,
 }
+
 
 struct Sphere {
     center: vec3<f32>,
@@ -31,6 +33,8 @@ struct Sphere {
 struct Plane {
     normal: vec3<f32>,
     point: vec3<f32>,
+    color: vec3<f32>,
+    emission: vec3<f32>,
 }
 
 struct ObjectsUniform {
@@ -184,6 +188,31 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
     return hit;
 }
 
+fn ray_plane_intersect(ray: Ray, plane: Plane) -> Hit {
+    var hit: Hit;
+    hit.success = false;
+
+    let denom = dot(plane.normal, ray.dir);
+
+    if abs(denom) < 1e-6 {
+        return hit;
+    }
+
+    let t = dot(plane.normal, plane.point - ray.pos) / denom;
+
+    if t < 0.0 {
+        return hit;
+    }
+
+    hit.success = true;
+    hit.position = ray.pos + ray.dir * t;
+    hit.normal = plane.normal;
+    hit.distance = t;
+    hit.material = Material(plane.color, plane.emission);
+
+    return hit;
+}
+
 fn sky(ray: Ray) -> vec3<f32> {
     return mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
 }
@@ -206,6 +235,13 @@ fn raytrace(ray: Ray) -> Hit {
         let sphere = objects.spheres[i];
 
         let hit = ray_sphere_intersect(ray, sphere);
+        closest_hit = merge_hit(closest_hit, hit);
+    }
+
+    for (var i = 0u; i < objects.num_planes; i++) {
+        let plane = objects.planes[i];
+
+        let hit = ray_plane_intersect(ray, plane);
         closest_hit = merge_hit(closest_hit, hit);
     }
 
@@ -242,18 +278,42 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
     return radiance;
 }
 
+fn from_screen_space(screen_space_pos: vec3<f32>, matrix: mat4x4<f32>) -> vec3<f32> {
+    let clip_space_pos = screen_space_pos * 2.0 - 1.0;
+    let temp = matrix * vec4(clip_space_pos, 1.0);
+    return temp.xyz / temp.w;
+}
+
+fn to_screen_space(pos: vec3<f32>, matrix: mat4x4<f32>) -> vec3<f32> {
+    let temp = matrix * vec4(pos, 1.0);
+    return (temp.xyz / temp.w) * 0.5 + 0.5;
+}
+
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     init_rng(in.texcoord);
 
     let screen_space_pos = vec3(in.texcoord, 1.0);
-    let clip_space_pos = screen_space_pos * 2.0 - 1.0;
+    let scene_space_pos = from_screen_space(screen_space_pos, camera.inverse_view_projection_matrix);
 
-    let temp = (camera.inverse_view_projection_matrix * vec4(clip_space_pos, 1.0));
-    let world_space_pos = temp.xyz / temp.w;
-    let view_space_pos = world_space_pos - camera.pos;
+    let view_dir = normalize(scene_space_pos);
 
-    let view_dir = normalize(view_space_pos);
+    let position_difference = camera.pos - camera.previous_pos;
+    let previous_screen_space_pos = to_screen_space(scene_space_pos + position_difference, camera.previous_view_projection_matrix);
+
+    let previous_uv = vec2(
+        previous_screen_space_pos.x,
+        1.0 - previous_screen_space_pos.y,
+    );
+
+    var camera_view = from_screen_space(vec3(0.5, 0.5, 1.0), camera.inverse_view_projection_matrix);
+    let previous_camera_view = normalize(to_screen_space(camera_view, camera.previous_view_projection_matrix));
+
+    camera_view = normalize(camera_view);
+
+    // if any(camera_view != previous_camera_view) {
+    //     return vec4(1.0, 0.0, 0.0, 1.0);
+    // }
 
     var ray: Ray;
     ray.pos = camera.pos;
@@ -266,8 +326,15 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         color += pathtrace(ray) / f32(rays);
     }
 
-    let previous_color = textureSample(previous_color_texture, previous_color_sampler, in.uv);
-    color = mix(color, previous_color.rgb, 0.9);
+    let sample = textureSample(previous_color_texture, previous_color_sampler, in.uv);
+    let previous_color = sample.rgb;
+    var frame_age = sample.a;
 
-    return vec4(color, previous_color.a + 1.0);
+    if camera.should_accumulate == 0 {
+        frame_age = 0.0;
+    }
+
+    color = mix(previous_color, color, 1.0 / (frame_age + 1.0));
+
+    return vec4(color, frame_age + 1.0);
 }

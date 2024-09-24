@@ -15,6 +15,7 @@ struct CameraUniform {
     view_width: u32,
     view_height: u32,
     frame_count: u32,
+    should_accumulate: u32,
 }
 
 @group(0) @binding(0)

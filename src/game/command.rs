@@ -9,7 +9,7 @@ use winit::keyboard::KeyCode;
 use super::{
     camera::Camera,
     input::KeyboardInput,
-    object::{Objects, Sphere},
+    object::{Objects, Plane, Sphere},
     render::ReloadRenderContextEvent,
 };
 
@@ -69,6 +69,7 @@ pub enum GameCommand {
     PrintPos,
     PrintCamera,
     Sphere(Sphere),
+    Plane(Plane),
     LookAtSphere,
     LookAt(Vec3),
     ReloadShaders,
@@ -93,6 +94,18 @@ impl GameCommand {
                 );
 
                 GameCommand::Sphere(Sphere::new(center, radius, color, emission))
+            }
+            "plane" => {
+                let normal = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
+                let point = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
+                let color = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
+                let emission = Vec3::new(
+                    args.next_f32().unwrap_or(0.0),
+                    args.next_f32().unwrap_or(0.0),
+                    args.next_f32().unwrap_or(0.0),
+                );
+
+                GameCommand::Plane(Plane::new(normal.normalize(), point, color, emission))
             }
             "lookAtSphere" => GameCommand::LookAtSphere,
             "lookAt" => {
@@ -168,6 +181,7 @@ pub fn receive_game_commands(
             GameCommand::PrintPos => log::info!("{}", camera.position),
             GameCommand::PrintCamera => log::info!("{:#?}", camera),
             GameCommand::Sphere(sphere) => objects.push_sphere(sphere),
+            GameCommand::Plane(plane) => objects.push_plane(plane),
             GameCommand::LookAtSphere => camera.look_at(objects.spheres[0].center()),
             GameCommand::LookAt(pos) => camera.look_at(pos),
             GameCommand::ReloadShaders => {

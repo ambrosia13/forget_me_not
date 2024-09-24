@@ -20,6 +20,8 @@ pub struct Camera {
 
     view_width: u32,
     view_height: u32,
+
+    previous_view_direction: Vec3,
 }
 
 impl Camera {
@@ -52,6 +54,7 @@ impl Camera {
             far,
             view_width,
             view_height,
+            previous_view_direction: Vec3::ZERO,
         }
     }
 
@@ -152,6 +155,8 @@ impl Camera {
         keyboard_input: Res<KeyboardInput>,
         last_frame_instant: Res<LastFrameInstant>,
     ) {
+        camera.previous_view_direction = camera.forward();
+
         for event in resize_events.read() {
             camera.reconfigure_aspect(event.0);
         }
@@ -208,6 +213,7 @@ pub struct CameraUniform {
     view_width: u32,
     view_height: u32,
     frame_count: u32,
+    should_accumulate: u32,
 }
 
 impl CameraUniform {
@@ -224,6 +230,7 @@ impl CameraUniform {
             view_width: 0,
             view_height: 0,
             frame_count: 0,
+            should_accumulate: 0,
         }
     }
 
@@ -245,6 +252,7 @@ impl CameraUniform {
             view_width: camera.view_width,
             view_height: camera.view_height,
             frame_count,
+            should_accumulate: 0,
         }
     }
 
@@ -261,6 +269,14 @@ impl CameraUniform {
 
         camera_uniform.previous_view_projection_matrix = view_proj;
         camera_uniform.previous_pos = pos;
+
+        camera_uniform.should_accumulate = if camera_uniform.previous_pos == camera_uniform.pos
+            && camera.forward() == camera.previous_view_direction
+        {
+            1
+        } else {
+            0
+        };
     }
 
     pub fn as_gpu_bytes(&self) -> GpuBytes {
@@ -276,6 +292,7 @@ impl CameraUniform {
             .write_u32(self.view_width)
             .write_u32(self.view_height)
             .write_u32(self.frame_count)
+            .write_u32(self.should_accumulate)
             .align();
 
         buf
