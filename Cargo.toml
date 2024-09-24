@@ -15,3 +15,4 @@ bytemuck = { version = "1.16.0", features = ["derive"] }
 glam = { version = "0.27.0", features = ["bytemuck"] }
 crossbeam-queue = "0.3.11"
 bevy_reflect = { version = "0.14.2", features = ["glam"] }
+regex = "1.10.6"

@@ -24,7 +24,7 @@ impl GpuFormattedBytes {
         let offset = self.bytes.len();
         let padding = (align - (offset % align)) % align;
 
-        self.bytes.extend(vec![0u8; padding]);
+        self.bytes.extend(std::iter::repeat(0u8).take(padding));
 
         self.bytes.extend_from_slice(data);
     }
