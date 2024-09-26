@@ -618,20 +618,7 @@ impl BloomRenderContext {
             ));
         }
 
-        let shader_path = std::env::current_dir()
-            .unwrap()
-            .join("assets/bloom_downsample.wgsl");
-
-        // todo: fallback shader
-        let shader_src = std::fs::read_to_string(shader_path).unwrap();
-
-        let fragment_shader_module =
-            render_state
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Bloom Downsample Pass Fragment Shader Module"),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(shader_src)),
-                });
+        let downsample_shader = render_state.load_shader("assets/bloom_downsample.wgsl");
 
         let downsample_pipeline_layout =
             render_state
@@ -670,7 +657,7 @@ impl BloomRenderContext {
                         alpha_to_coverage_enabled: false,
                     },
                     fragment: Some(wgpu::FragmentState {
-                        module: &fragment_shader_module,
+                        module: downsample_shader.module(),
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
@@ -776,20 +763,7 @@ impl BloomRenderContext {
                     ],
                 });
 
-        let shader_path = std::env::current_dir()
-            .unwrap()
-            .join("assets/bloom_upsample_first.wgsl");
-
-        // todo: fallback shader
-        let shader_src = std::fs::read_to_string(shader_path).unwrap();
-
-        let fragment_shader_module =
-            render_state
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("First Bloom Upsample Pass Fragment Shader Module"),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(shader_src)),
-                });
+        let first_upsample_shader = render_state.load_shader("assets/bloom_upsample_first.wgsl");
 
         let first_upsample_pipeline_layout =
             render_state
@@ -828,7 +802,7 @@ impl BloomRenderContext {
                         alpha_to_coverage_enabled: false,
                     },
                     fragment: Some(wgpu::FragmentState {
-                        module: &fragment_shader_module,
+                        module: first_upsample_shader.module(),
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
@@ -883,20 +857,7 @@ impl BloomRenderContext {
                     ],
                 });
 
-        let shader_path = std::env::current_dir()
-            .unwrap()
-            .join("assets/bloom_upsample.wgsl");
-
-        // todo: fallback shader
-        let shader_src = std::fs::read_to_string(shader_path).unwrap();
-
-        let fragment_shader_module =
-            render_state
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Bloom Upsample Pass Fragment Shader Module"),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(shader_src)),
-                });
+        let upsample_shader = render_state.load_shader("assets/bloom_upsample.wgsl");
 
         let upsample_pipeline_layout =
             render_state
@@ -935,7 +896,7 @@ impl BloomRenderContext {
                         alpha_to_coverage_enabled: false,
                     },
                     fragment: Some(wgpu::FragmentState {
-                        module: &fragment_shader_module,
+                        module: upsample_shader.module(),
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
@@ -1077,20 +1038,7 @@ impl BloomRenderContext {
                     ],
                 });
 
-        let shader_path = std::env::current_dir()
-            .unwrap()
-            .join("assets/bloom_merge.wgsl");
-
-        // todo: fallback shader
-        let shader_src = std::fs::read_to_string(shader_path).unwrap();
-
-        let fragment_shader_module =
-            render_state
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Bloom Merge Pass Shader Module"),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(shader_src)),
-                });
+        let merge_shader = render_state.load_shader("assets/bloom_merge.wgsl");
 
         let merge_pipeline_layout =
             render_state
@@ -1129,7 +1077,7 @@ impl BloomRenderContext {
                         alpha_to_coverage_enabled: false,
                     },
                     fragment: Some(wgpu::FragmentState {
-                        module: &fragment_shader_module,
+                        module: merge_shader.module(),
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
@@ -1477,9 +1425,7 @@ impl FinalRenderContext {
                     push_constant_ranges: &[],
                 });
 
-        let fragment_shader_module = render_state
-            .device
-            .create_shader_module(wgpu::include_wgsl!("shaders/final.wgsl"));
+        let fragment_shader = render_state.load_shader("assets/final.wgsl");
 
         let pipeline =
             render_state
@@ -1509,7 +1455,7 @@ impl FinalRenderContext {
                         alpha_to_coverage_enabled: false,
                     },
                     fragment: Some(wgpu::FragmentState {
-                        module: &fragment_shader_module,
+                        module: fragment_shader.module(),
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {

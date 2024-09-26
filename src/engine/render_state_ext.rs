@@ -10,19 +10,17 @@ pub trait RenderStateExt {
 
 impl RenderStateExt for RenderState {
     fn load_shader<P: AsRef<Path>>(&self, relative_path: P) -> WgslShader {
-        let source = WgslShaderSource::load(relative_path);
+        let mut source = WgslShaderSource::load(relative_path);
 
         self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let module = self.device.create_shader_module(source.desc());
+        let mut module = self.device.create_shader_module(source.desc());
         let err = pollster::block_on(self.device.pop_error_scope());
 
         if err.is_some() {
-            let source = WgslShaderSource::fallback();
-            let module = self.device.create_shader_module(source.desc());
-
-            WgslShader { source, module }
-        } else {
-            WgslShader { source, module }
+            source = WgslShaderSource::fallback();
+            module = self.device.create_shader_module(source.desc());
         }
+
+        WgslShader { source, module }
     }
 }
