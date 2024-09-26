@@ -1,3 +1,5 @@
+#include assets/header.wgsl
+
 const PI: f32 = 3.1415926535897932384626433832795;
 const HALF_PI: f32 = 1.57079632679489661923; 
 const TAU: f32 = 6.2831853071795864769252867665590; 
@@ -8,19 +10,19 @@ struct VertexOutput {
     @location(1) texcoord: vec2<f32>,
 }
 
-struct CameraUniform {
-    view_projection_matrix: mat4x4<f32>,
-    inverse_view_projection_matrix: mat4x4<f32>,
-    view_matrix: mat4x4<f32>,
-    inverse_view_matrix: mat4x4<f32>,
-    previous_view_projection_matrix: mat4x4<f32>,
-    pos: vec3<f32>,
-    previous_pos: vec3<f32>,
-    view_width: u32,
-    view_height: u32,
-    frame_count: u32,
-    should_accumulate: u32,
-}
+// struct CameraUniform {
+//     view_projection_matrix: mat4x4<f32>,
+//     inverse_view_projection_matrix: mat4x4<f32>,
+//     view_matrix: mat4x4<f32>,
+//     inverse_view_matrix: mat4x4<f32>,
+//     previous_view_projection_matrix: mat4x4<f32>,
+//     pos: vec3<f32>,
+//     previous_pos: vec3<f32>,
+//     view_width: u32,
+//     view_height: u32,
+//     frame_count: u32,
+//     should_accumulate: u32,
+// }
 
 
 struct Sphere {

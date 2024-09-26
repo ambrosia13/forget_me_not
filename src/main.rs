@@ -1,5 +1,6 @@
 use env_logger::Env;
 
+pub mod engine;
 pub mod game;
 pub mod render_state;
 pub mod util;

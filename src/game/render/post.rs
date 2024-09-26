@@ -1,9 +1,11 @@
+use crate::engine::render_state_ext::RenderStateExt;
 use crate::game::camera::CameraBuffer;
 use crate::game::object::ObjectsBuffer;
 use crate::game::vertex;
 use crate::render_state::{
     CommandEncoderResource, RenderState, SurfaceTextureResource, WindowResizeEvent,
 };
+use crate::util;
 use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
 
@@ -228,25 +230,7 @@ impl RaytraceRenderContext {
                     push_constant_ranges: &[],
                 });
 
-        let shader_path = std::env::current_dir()
-            .unwrap()
-            .join("assets/raytrace.wgsl");
-
-        let shader_src = match std::fs::read_to_string(shader_path) {
-            Ok(src) => src,
-            Err(_) => {
-                log::warn!("Couldn't read file at assets/raytrace.wgsl, using fallback shader");
-                include_str!("shaders/raytrace.wgsl").to_owned()
-            }
-        };
-
-        let fragment_shader_module =
-            render_state
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("raytrace.wgsl"),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(shader_src)),
-                });
+        let fragment_shader = render_state.load_shader("assets/raytrace.wgsl");
 
         let pipeline =
             render_state
@@ -276,7 +260,7 @@ impl RaytraceRenderContext {
                         alpha_to_coverage_enabled: false,
                     },
                     fragment: Some(wgpu::FragmentState {
-                        module: &fragment_shader_module,
+                        module: fragment_shader.module(),
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
