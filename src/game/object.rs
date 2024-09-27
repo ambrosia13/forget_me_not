@@ -4,7 +4,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{
     render_state::RenderState,
-    util::buffer::{AsGpuFormattedBytes, GpuFormattedBytes},
+    util::buffer::{AsStd140Bytes, Std140Bytes},
 };
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -42,9 +42,9 @@ impl Sphere {
     }
 }
 
-impl AsGpuFormattedBytes for Sphere {
-    fn as_gpu_bytes(&self) -> GpuFormattedBytes {
-        let mut buf = GpuFormattedBytes::new();
+impl AsStd140Bytes for Sphere {
+    fn as_std140(&self) -> Std140Bytes {
+        let mut buf = Std140Bytes::new();
 
         buf.write_vec3(self.center)
             .write_f32(self.radius)
@@ -75,9 +75,9 @@ impl Plane {
     }
 }
 
-impl AsGpuFormattedBytes for Plane {
-    fn as_gpu_bytes(&self) -> GpuFormattedBytes {
-        let mut buf = GpuFormattedBytes::new();
+impl AsStd140Bytes for Plane {
+    fn as_std140(&self) -> Std140Bytes {
+        let mut buf = Std140Bytes::new();
 
         buf.write_vec3(self.normal)
             .write_vec3(self.point)
@@ -161,9 +161,9 @@ impl ObjectsUniform {
     }
 }
 
-impl AsGpuFormattedBytes for ObjectsUniform {
-    fn as_gpu_bytes(&self) -> GpuFormattedBytes {
-        let mut buf = GpuFormattedBytes::new();
+impl AsStd140Bytes for ObjectsUniform {
+    fn as_std140(&self) -> Std140Bytes {
+        let mut buf = Std140Bytes::new();
 
         buf.write_u32(self.num_spheres);
         buf.write_u32(self.num_planes);
@@ -198,7 +198,7 @@ impl ObjectsBuffer {
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Objects Uniform Buffer"),
-                    contents: bytemuck::cast_slice(objects_uniform.as_gpu_bytes().as_slice()),
+                    contents: bytemuck::cast_slice(objects_uniform.as_std140().as_slice()),
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 }),
         })
@@ -212,7 +212,7 @@ impl ObjectsBuffer {
         render_state.queue.write_buffer(
             &objects_buffer.buffer,
             0,
-            bytemuck::cast_slice(objects_uniform.as_gpu_bytes().as_slice()),
+            bytemuck::cast_slice(objects_uniform.as_std140().as_slice()),
         );
     }
 }

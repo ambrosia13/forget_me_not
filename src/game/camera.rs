@@ -1,6 +1,6 @@
 use crate::game::input::{KeyboardInput, MouseMotion};
 use crate::render_state::{LastFrameInstant, RenderState, WindowResizeEvent};
-use crate::util::buffer::GpuFormattedBytes;
+use crate::util::buffer::Std140Bytes;
 use bevy_ecs::prelude::*;
 use glam::{Mat3, Mat4, Quat, Vec3, Vec4};
 use wgpu::util::DeviceExt;
@@ -279,8 +279,8 @@ impl CameraUniform {
         };
     }
 
-    pub fn as_gpu_bytes(&self) -> GpuFormattedBytes {
-        let mut buf = GpuFormattedBytes::new();
+    pub fn as_gpu_bytes(&self) -> Std140Bytes {
+        let mut buf = Std140Bytes::new();
 
         buf.write_mat4(self.view_projection_matrix)
             .write_mat4(self.inverse_view_projection_matrix)
