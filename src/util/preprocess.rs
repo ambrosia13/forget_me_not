@@ -1,36 +1,31 @@
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
+
+use regex::Regex;
 
 pub fn resolve_includes(mut source: String, parent_dir: &Path) -> Result<String, std::io::Error> {
-    let mut include_source = String::new();
+    let mut included = HashSet::new();
 
-    let mut index_of_include = 0;
-    let mut length_of_include: usize = 0;
+    let regex = Regex::new(r#"#include ([\w/\.]+)"#).unwrap();
 
-    let mut index: usize = 0;
-    let mut found_include_directive = false;
-    for s in source.split_ascii_whitespace() {
-        if found_include_directive {
-            let path = parent_dir.join(Path::new(s));
-            include_source = std::fs::read_to_string(path)?;
+    while let Some(regex_match) = regex.find(&source) {
+        let include_arg = regex_match
+            .as_str()
+            .split_ascii_whitespace()
+            .nth(1)
+            .unwrap();
 
-            index_of_include = index.saturating_sub("#include ".len());
-            length_of_include = "#include ".len() + s.len();
+        let relative_path = Path::new(include_arg);
+        let include_path = parent_dir.join(relative_path);
 
-            break;
+        if !included.contains(&include_path) {
+            let include_source = std::fs::read_to_string(&include_path)?;
+
+            source = regex.replace(&source, &include_source).to_string();
+            included.insert(include_path);
+        } else {
+            source = regex.replace(&source, "").to_string();
         }
-
-        found_include_directive = s == "#include";
-        index += s.len();
     }
 
-    let (before_include, include) = source.split_at_mut(index_of_include);
-    let (_, after_include) = include.split_at_mut(length_of_include);
-
-    let new_source = if found_include_directive {
-        format!("{}{}{}", before_include, include_source, after_include)
-    } else {
-        source
-    };
-
-    Ok(new_source)
+    Ok(source)
 }

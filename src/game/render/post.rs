@@ -5,7 +5,6 @@ use crate::game::vertex;
 use crate::render_state::{
     CommandEncoderResource, RenderState, SurfaceTextureResource, WindowResizeEvent,
 };
-use crate::util;
 use bevy_ecs::prelude::*;
 use wgpu::util::DeviceExt;
 
@@ -167,7 +166,7 @@ impl RaytraceRenderContext {
                 .device
                 .create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Raytrace Pass Objects Uniform Bind Group"),
-                    layout: &camera_uniform_bind_group_layout,
+                    layout: &objects_uniform_bind_group_layout,
                     entries: &[wgpu::BindGroupEntry {
                         binding: 0,
                         resource: objects_buffer.buffer.as_entire_binding(),

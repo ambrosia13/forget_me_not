@@ -6,7 +6,7 @@ use std::{
 use crate::util;
 
 pub enum WgslShaderSource {
-    Valid {
+    File {
         name: String,
         source: String,
         path: PathBuf,
@@ -24,7 +24,7 @@ impl WgslShaderSource {
 
         let name = path.file_name().unwrap().to_str().unwrap().to_owned(); // ew
 
-        Ok(Self::Valid { name, source, path })
+        Ok(Self::File { name, source, path })
     }
 
     pub fn load<P: AsRef<Path>>(relative_path: P) -> Self {
@@ -38,25 +38,20 @@ impl WgslShaderSource {
         Self::Fallback
     }
 
-    pub fn reload(&mut self) -> Result<(), std::io::Error> {
+    pub fn name(&self) -> &str {
         match self {
-            WgslShaderSource::Valid {
-                name: _,
-                source,
-                path,
-            } => {
-                let new_source = std::fs::read_to_string(path)?;
-                *source = new_source;
-            }
-            WgslShaderSource::Fallback => {}
+            WgslShaderSource::File {
+                name,
+                source: _,
+                path: _,
+            } => name,
+            WgslShaderSource::Fallback => "fallback.wgsl",
         }
-
-        Ok(())
     }
 
     pub fn desc(&self) -> wgpu::ShaderModuleDescriptor {
         match self {
-            WgslShaderSource::Valid {
+            WgslShaderSource::File {
                 name,
                 source,
                 path: _,
