@@ -60,6 +60,10 @@ impl<'a> GameCommandArgs<'a> {
         self.next::<f32>()
     }
 
+    pub fn next_f32_gamma_corrected(&mut self) -> Option<f32> {
+        self.next_f32().map(|f| f.powf(2.2))
+    }
+
     pub fn next_bool(&mut self) -> Option<bool> {
         self.next::<bool>()
     }
@@ -118,18 +122,29 @@ impl GameCommand {
                 let ty = match args.next_str()? {
                     "lambertian" | "lambert" => MaterialType::Lambertian,
                     "metal" => MaterialType::Metal,
+                    "dielectric" => MaterialType::Dielectric,
                     _ => return None,
                 };
 
-                let albedo = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
-                let emission = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
+                let albedo = Vec3::new(
+                    args.next_f32_gamma_corrected()?,
+                    args.next_f32_gamma_corrected()?,
+                    args.next_f32_gamma_corrected()?,
+                );
+                let emission = Vec3::new(
+                    args.next_f32_gamma_corrected()?,
+                    args.next_f32_gamma_corrected()?,
+                    args.next_f32_gamma_corrected()?,
+                );
                 let roughness = args.next_f32()?;
+                let ior = args.next_f32()?;
 
                 let new_material = Material {
                     ty,
                     albedo,
                     emission,
                     roughness: roughness.powi(2),
+                    ior,
                 };
 
                 log::info!("Current material set to {:#?}", new_material);

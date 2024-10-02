@@ -1,5 +1,3 @@
-use std::default;
-
 use glam::Vec3;
 
 use crate::util::buffer::{AsStd140Bytes, Std140Bytes};
@@ -10,6 +8,7 @@ pub enum MaterialType {
     #[default]
     Lambertian = 0,
     Metal = 1,
+    Dielectric = 2,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -18,6 +17,7 @@ pub struct Material {
     pub albedo: Vec3,
     pub emission: Vec3,
     pub roughness: f32,
+    pub ior: f32,
 }
 
 impl AsStd140Bytes for Material {
@@ -28,6 +28,7 @@ impl AsStd140Bytes for Material {
             .write_vec3(self.albedo)
             .write_vec3(self.emission)
             .write_f32(self.roughness)
+            .write_f32(self.ior)
             .align();
 
         buf

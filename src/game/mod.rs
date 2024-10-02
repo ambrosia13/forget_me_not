@@ -51,6 +51,7 @@ fn init_commands() -> Arc<GameCommands> {
             albedo: Vec3::ONE,
             emission: Vec3::ZERO,
             roughness: 0.0,
+            ior: 1.0,
         });
 
         loop {

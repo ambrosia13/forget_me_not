@@ -12,12 +12,16 @@ struct VertexOutput {
 
 const MATERIAL_LAMBERTIAN: u32 = 0u;
 const MATERIAL_METAL: u32 = 1u;
+const MATERIAL_DIELECTRIC: u32 = 2u;
+
+const IOR_AIR: f32 = 1.000293;
 
 struct Material {
     ty: u32,
     albedo: vec3<f32>,
     emission: vec3<f32>,
     roughness: f32,
+    ior: f32,
 }
 
 struct Sphere {
@@ -105,6 +109,7 @@ struct Hit {
     position: vec3<f32>,
     normal: vec3<f32>,
     distance: f32,
+    front_face: bool,
     material: Material,
 }
 
@@ -167,6 +172,7 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
             hit.position = point;
             hit.normal = normal;
             hit.distance = t;
+            hit.front_face = front_face;
         }
     }
 
@@ -194,6 +200,7 @@ fn ray_plane_intersect(ray: Ray, plane: Plane) -> Hit {
     hit.position = ray.pos + ray.dir * t;
     hit.normal = plane.normal;
     hit.distance = t;
+    hit.front_face = dot(ray.dir, plane.normal) > 0.0;
 
     return hit;
 }
@@ -233,32 +240,76 @@ fn raytrace(ray: Ray) -> Hit {
     return closest_hit;
 }
 
-fn brdf(material: Material, ray: Ray) -> vec3<f32> {
-    if material.ty == MATERIAL_LAMBERTIAN {
-        return material.albedo / PI;
-    } else if material.ty == MATERIAL_METAL {
-        return material.albedo;
-    } else {
-        return vec3(0.0);
-    }
+fn schlick_approximation(cos_theta: f32, ior: f32) -> f32 {
+    var r0 = (1.0 - ior) / (1.0 + ior);
+    r0 *= r0;
+
+    //return clamp(-(1.0 - cos_theta), 0.0, 1.0);
+    return r0 + (1.0 - r0) * pow(1.0 - cos_theta, 5.0);
 }
 
-fn next_ray(hit: Hit, ray: Ray) -> Ray {
+struct MaterialHitResult {
+    brdf: vec3<f32>,
+    next_ray: Ray,
+}
+
+fn material_hit_result(hit: Hit, ray: Ray) -> MaterialHitResult {
     if hit.material.ty == MATERIAL_LAMBERTIAN {
-        return Ray(hit.position + hit.normal * 0.0001, generate_cosine_vector(hit.normal));
+        let brdf = hit.material.albedo / PI;
+        let next_ray = Ray(hit.position + hit.normal * 0.0001, generate_cosine_vector(hit.normal));
+
+        return MaterialHitResult(brdf, next_ray);
     } else if hit.material.ty == MATERIAL_METAL {
-        let dir = reflect(ray.dir, hit.normal);
-        return Ray(
+        let brdf = hit.material.albedo;
+        
+        let reflect_dir = reflect(ray.dir, hit.normal);
+        let next_ray = Ray(
             hit.position + hit.normal * 0.0001, 
-            mix(dir, generate_cosine_vector(hit.normal), hit.material.roughness)
+            mix(reflect_dir, generate_cosine_vector(hit.normal), hit.material.roughness)
         );
+
+        return MaterialHitResult(brdf, next_ray);
+    } else if hit.material.ty == MATERIAL_DIELECTRIC {
+        let cos_theta = dot(-ray.dir, hit.normal);
+        let sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+
+        var ior: f32;
+
+        if hit.front_face {
+            ior = IOR_AIR / hit.material.ior;
+        } else {
+            ior = hit.material.ior / IOR_AIR;
+        }
+
+        let cannot_refract = ior * sin_theta > 1.0;
+
+        var brdf = vec3(0.0);
+        var pos = hit.position;
+        var dir = vec3(0.0);
+
+        if cannot_refract || schlick_approximation(cos_theta, ior) > next_f32() {
+            brdf = vec3(1.0);
+            dir = reflect(ray.dir, hit.normal);
+            pos += hit.normal * 0.0001;
+        } else {
+            // dir = generate_cosine_vector(hit.normal);
+            // pos += hit.normal * 0.0001;
+
+            brdf = hit.material.albedo;
+            dir = refract(ray.dir, hit.normal, ior);
+            pos -= hit.normal * 0.0001;
+        }
+
+
+        return MaterialHitResult(brdf, Ray(pos, dir));
     } else {
-        return ray;
+        return MaterialHitResult(vec3(0.0), Ray(vec3(0.0), vec3(0.0)));
     }
 }
 
 fn pathtrace(ray: Ray) -> vec3<f32> {
     var incoming_normal = vec3(10.0);
+    var current_ior = IOR_AIR;
 
     var throughput = vec3(1.0);
     var radiance = vec3(0.0);
@@ -279,9 +330,11 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
 
         incoming_normal = hit.normal;
         radiance += throughput * hit.material.emission;
-        throughput *= brdf(hit.material, current_ray);
 
-        current_ray = next_ray(hit, current_ray);
+        let material_hit_result = material_hit_result(hit, current_ray);
+        throughput *= material_hit_result.brdf;
+
+        current_ray = material_hit_result.next_ray;
     }
 
     return radiance;
