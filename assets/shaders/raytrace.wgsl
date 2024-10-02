@@ -198,7 +198,7 @@ fn ray_plane_intersect(ray: Ray, plane: Plane) -> Hit {
 
     hit.success = true;
     hit.position = ray.pos + ray.dir * t;
-    hit.normal = plane.normal;
+    hit.normal = plane.normal * -sign(denom);
     hit.distance = t;
     hit.front_face = dot(ray.dir, plane.normal) > 0.0;
 
@@ -289,14 +289,20 @@ fn material_hit_result(hit: Hit, ray: Ray) -> MaterialHitResult {
 
         if cannot_refract || schlick_approximation(cos_theta, ior) > next_f32() {
             brdf = vec3(1.0);
+            
             dir = reflect(ray.dir, hit.normal);
+            dir = mix(dir, generate_cosine_vector(hit.normal), hit.material.roughness);
+
             pos += hit.normal * 0.0001;
         } else {
             // dir = generate_cosine_vector(hit.normal);
             // pos += hit.normal * 0.0001;
 
             brdf = hit.material.albedo;
+
             dir = refract(ray.dir, hit.normal, ior);
+            dir = normalize(dir + generate_unit_vector() * hit.material.roughness);
+
             pos -= hit.normal * 0.0001;
         }
 
@@ -316,7 +322,7 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
 
     var current_ray = ray;
 
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 6; i++) {
         var hit: Hit;
         var weight: f32 = 1.0 / TAU;
 
