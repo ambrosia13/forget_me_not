@@ -6,9 +6,12 @@ use derived_deref::Deref;
 use glam::Vec3;
 use winit::keyboard::KeyCode;
 
+use crate::game::material::MaterialType;
+
 use super::{
     camera::Camera,
     input::KeyboardInput,
+    material::Material,
     object::{Objects, Plane, Sphere},
     render::ReloadRenderContextEvent,
 };
@@ -32,8 +35,10 @@ impl<'a> GameCommandArgs<'a> {
     }
 
     pub fn next_str(&mut self) -> Option<&'a str> {
+        let next = self.strs.get(self.current).copied();
         self.current += 1;
-        self.strs.get(self.current - 1).copied()
+
+        next
     }
 
     fn next<T: Copy + FromStr>(&mut self) -> Option<T> {
@@ -73,10 +78,11 @@ pub enum GameCommand {
     LookAtSphere,
     LookAt(Vec3),
     ReloadShaders,
+    NoOp,
 }
 
 impl GameCommand {
-    pub fn parse(input: &str) -> Option<Self> {
+    pub fn parse(input: &str, material: &mut Option<Material>) -> Option<Self> {
         let mut args = GameCommandArgs::from_input(input);
         let cmd_str = args.cmd_name()?;
 
@@ -86,26 +92,18 @@ impl GameCommand {
             "sphere" => {
                 let center = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
                 let radius = args.next_f32()?;
-                let color = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
-                let emission = Vec3::new(
-                    args.next_f32().unwrap_or(0.0),
-                    args.next_f32().unwrap_or(0.0),
-                    args.next_f32().unwrap_or(0.0),
-                );
 
-                GameCommand::Sphere(Sphere::new(center, radius, color, emission))
+                GameCommand::Sphere(Sphere::new(center, radius, material.as_mut().copied()?))
             }
             "plane" => {
                 let normal = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
                 let point = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
-                let color = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
-                let emission = Vec3::new(
-                    args.next_f32().unwrap_or(0.0),
-                    args.next_f32().unwrap_or(0.0),
-                    args.next_f32().unwrap_or(0.0),
-                );
 
-                GameCommand::Plane(Plane::new(normal.normalize(), point, color, emission))
+                GameCommand::Plane(Plane::new(
+                    normal.normalize(),
+                    point,
+                    material.as_mut().copied()?,
+                ))
             }
             "lookAtSphere" => GameCommand::LookAtSphere,
             "lookAt" => {
@@ -116,6 +114,29 @@ impl GameCommand {
                 GameCommand::LookAt(Vec3::new(x, y, z))
             }
             "reload" => GameCommand::ReloadShaders,
+            "material" => {
+                let ty = match args.next_str()? {
+                    "lambertian" | "lambert" => MaterialType::Lambertian,
+                    "metal" => MaterialType::Metal,
+                    _ => return None,
+                };
+
+                let albedo = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
+                let emission = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
+                let roughness = args.next_f32()?;
+
+                let new_material = Material {
+                    ty,
+                    albedo,
+                    emission,
+                    roughness: roughness.powi(2),
+                };
+
+                log::info!("Current material set to {:#?}", new_material);
+                *material = Some(new_material);
+
+                GameCommand::NoOp
+            }
             _ => return None,
         };
 
@@ -187,6 +208,7 @@ pub fn receive_game_commands(
             GameCommand::ReloadShaders => {
                 reload_raytrace_events.send(ReloadRenderContextEvent);
             }
+            GameCommand::NoOp => {}
         }
     }
 }

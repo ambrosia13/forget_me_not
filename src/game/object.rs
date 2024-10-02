@@ -7,21 +7,21 @@ use crate::{
     util::buffer::{AsStd140Bytes, Std140Bytes},
 };
 
+use super::material::Material;
+
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Sphere {
     center: Vec3,
     radius: f32,
-    color: Vec3,
-    emission: Vec3,
+    material: Material,
 }
 
 impl Sphere {
-    pub fn new(center: Vec3, radius: f32, color: Vec3, emission: Vec3) -> Self {
+    pub fn new(center: Vec3, radius: f32, material: Material) -> Self {
         Self {
             center,
             radius,
-            color,
-            emission,
+            material,
         }
     }
 
@@ -32,14 +32,6 @@ impl Sphere {
     pub fn radius(&self) -> f32 {
         self.radius
     }
-
-    pub fn color(&self) -> Vec3 {
-        self.color
-    }
-
-    pub fn emission(&self) -> Vec3 {
-        self.emission
-    }
 }
 
 impl AsStd140Bytes for Sphere {
@@ -48,8 +40,7 @@ impl AsStd140Bytes for Sphere {
 
         buf.write_vec3(self.center)
             .write_f32(self.radius)
-            .write_vec3(self.color)
-            .write_vec3(self.emission)
+            .write_struct(&self.material)
             .align();
 
         buf
@@ -60,17 +51,15 @@ impl AsStd140Bytes for Sphere {
 pub struct Plane {
     normal: Vec3,
     point: Vec3,
-    color: Vec3,
-    emission: Vec3,
+    material: Material,
 }
 
 impl Plane {
-    pub fn new(normal: Vec3, point: Vec3, color: Vec3, emission: Vec3) -> Self {
+    pub fn new(normal: Vec3, point: Vec3, material: Material) -> Self {
         Self {
             normal,
             point,
-            color,
-            emission,
+            material,
         }
     }
 }
@@ -81,8 +70,7 @@ impl AsStd140Bytes for Plane {
 
         buf.write_vec3(self.normal)
             .write_vec3(self.point)
-            .write_vec3(self.color)
-            .write_vec3(self.emission)
+            .write_struct(&self.material)
             .align();
 
         buf
@@ -137,10 +125,10 @@ impl ObjectsUniform {
         let mut spheres = [Sphere::default(); 32];
         let mut planes = [Plane::default(); 32];
 
-        for (i, &sphere) in objects.spheres.iter().enumerate() {
+        for (i, &sphere) in objects.spheres.iter().enumerate().take(32) {
             spheres[i] = sphere;
         }
-        for (i, &plane) in objects.planes.iter().enumerate() {
+        for (i, &plane) in objects.planes.iter().enumerate().take(32) {
             planes[i] = plane;
         }
 

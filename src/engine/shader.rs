@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    fmt::Debug,
     path::{Path, PathBuf},
 };
 
@@ -19,7 +20,7 @@ impl WgslShaderSource {
         let parent_path = std::env::current_dir()?;
         let path = parent_path.join(relative_path);
 
-        let source = std::fs::read_to_string(&path)?;
+        let source = std::fs::read_to_string(&path).unwrap();
         let source = util::preprocess::resolve_includes(source, &parent_path)?;
 
         let name = path.file_name().unwrap().to_str().unwrap().to_owned(); // ew
@@ -27,10 +28,16 @@ impl WgslShaderSource {
         Ok(Self::File { name, source, path })
     }
 
-    pub fn load<P: AsRef<Path>>(relative_path: P) -> Self {
-        match Self::read_source(relative_path) {
+    pub fn load<P: AsRef<Path> + Debug>(relative_path: P) -> Self {
+        match Self::read_source(&relative_path) {
             Ok(s) => s,
-            Err(_) => Self::Fallback,
+            Err(_) => {
+                log::warn!(
+                    "Shader at path {:?} failed to load, substituting fallback shader.",
+                    relative_path
+                );
+                Self::Fallback
+            }
         }
     }
 

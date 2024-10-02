@@ -178,7 +178,6 @@ impl SolidTerrainRenderContext {
 
     pub fn recreate(&mut self, render_state: &RenderState, camera_buffer: &CameraBuffer) {
         *self = Self::new(render_state, camera_buffer);
-        log::info!("Solid terrain render context recreated");
     }
 
     pub fn draw(&self, encoder: &mut wgpu::CommandEncoder) {

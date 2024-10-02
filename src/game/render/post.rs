@@ -229,7 +229,7 @@ impl RaytraceRenderContext {
                     push_constant_ranges: &[],
                 });
 
-        let fragment_shader = render_state.load_shader("assets/raytrace.wgsl");
+        let fragment_shader = render_state.load_shader("assets/shaders/raytrace.wgsl");
 
         let pipeline =
             render_state
@@ -289,7 +289,6 @@ impl RaytraceRenderContext {
         objects_buffer: &ObjectsBuffer,
     ) {
         *self = Self::new(render_state, fullscreen_quad, camera_buffer, objects_buffer);
-        log::info!("Raytrace pass render context recreated");
     }
 
     pub fn draw(&self, fullscreen_quad: &FullscreenQuad, encoder: &mut wgpu::CommandEncoder) {
@@ -617,7 +616,7 @@ impl BloomRenderContext {
             ));
         }
 
-        let downsample_shader = render_state.load_shader("assets/bloom_downsample.wgsl");
+        let downsample_shader = render_state.load_shader("assets/shaders/bloom_downsample.wgsl");
 
         let downsample_pipeline_layout =
             render_state
@@ -762,7 +761,8 @@ impl BloomRenderContext {
                     ],
                 });
 
-        let first_upsample_shader = render_state.load_shader("assets/bloom_upsample_first.wgsl");
+        let first_upsample_shader =
+            render_state.load_shader("assets/shaders/bloom_upsample_first.wgsl");
 
         let first_upsample_pipeline_layout =
             render_state
@@ -856,7 +856,7 @@ impl BloomRenderContext {
                     ],
                 });
 
-        let upsample_shader = render_state.load_shader("assets/bloom_upsample.wgsl");
+        let upsample_shader = render_state.load_shader("assets/shaders/bloom_upsample.wgsl");
 
         let upsample_pipeline_layout =
             render_state
@@ -1037,7 +1037,7 @@ impl BloomRenderContext {
                     ],
                 });
 
-        let merge_shader = render_state.load_shader("assets/bloom_merge.wgsl");
+        let merge_shader = render_state.load_shader("assets/shaders/bloom_merge.wgsl");
 
         let merge_pipeline_layout =
             render_state
@@ -1289,7 +1289,6 @@ impl BloomRenderContext {
                 &camera_buffer,
                 7,
             );
-            log::info!("Bloom render context recreated");
         }
 
         for _ in reload_events.read() {
@@ -1300,7 +1299,6 @@ impl BloomRenderContext {
                 &camera_buffer,
                 7,
             );
-            log::info!("Bloom render context recreated");
         }
 
         bloom_render_context.draw_bloom_downsample(&fullscreen_quad, &mut command_encoder_resource);
@@ -1424,7 +1422,7 @@ impl FinalRenderContext {
                     push_constant_ranges: &[],
                 });
 
-        let fragment_shader = render_state.load_shader("assets/final.wgsl");
+        let fragment_shader = render_state.load_shader("assets/shaders/final.wgsl");
 
         let pipeline =
             render_state
@@ -1488,7 +1486,6 @@ impl FinalRenderContext {
             input_color_texture,
             camera_buffer,
         );
-        log::info!("Final pass render context recreated");
     }
 
     pub fn draw(

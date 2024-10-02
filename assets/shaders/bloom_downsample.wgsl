@@ -1,4 +1,4 @@
-#include assets/header.wgsl
+#include assets/shaders/header.wgsl
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,

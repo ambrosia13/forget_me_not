@@ -1,4 +1,4 @@
-#include assets/header.wgsl
+#include assets/shaders/header.wgsl
 
 const PI: f32 = 3.1415926535897932384626433832795;
 const HALF_PI: f32 = 1.57079632679489661923; 
@@ -10,18 +10,26 @@ struct VertexOutput {
     @location(1) texcoord: vec2<f32>,
 }
 
+const MATERIAL_LAMBERTIAN: u32 = 0u;
+const MATERIAL_METAL: u32 = 1u;
+
+struct Material {
+    ty: u32,
+    albedo: vec3<f32>,
+    emission: vec3<f32>,
+    roughness: f32,
+}
+
 struct Sphere {
     center: vec3<f32>,
     radius: f32,
-    color: vec3<f32>,
-    emission: vec3<f32>,
+    material: Material,
 }
 
 struct Plane {
     normal: vec3<f32>,
     point: vec3<f32>,
-    color: vec3<f32>,
-    emission: vec3<f32>,
+    material: Material,
 }
 
 struct ObjectsUniform {
@@ -92,11 +100,6 @@ struct Ray {
     dir: vec3<f32>,
 }
 
-struct Material {
-    albedo: vec3<f32>,
-    emission: vec3<f32>,
-}
-
 struct Hit {
     success: bool,
     position: vec3<f32>,
@@ -129,12 +132,7 @@ fn merge_hit(a: Hit, b: Hit) -> Hit {
 fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
     var hit: Hit;
     hit.success = false;
-
-    var material: Material;
-    material.albedo = sphere.color;
-    material.emission = sphere.emission;
-
-    hit.material = material;
+    hit.material = sphere.material;
 
     let origin_to_center = ray.pos - sphere.center;
 
@@ -178,6 +176,7 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
 fn ray_plane_intersect(ray: Ray, plane: Plane) -> Hit {
     var hit: Hit;
     hit.success = false;
+    hit.material = plane.material;
 
     let denom = dot(plane.normal, ray.dir);
 
@@ -195,7 +194,6 @@ fn ray_plane_intersect(ray: Ray, plane: Plane) -> Hit {
     hit.position = ray.pos + ray.dir * t;
     hit.normal = plane.normal;
     hit.distance = t;
-    hit.material = Material(plane.color, plane.emission);
 
     return hit;
 }
@@ -235,6 +233,30 @@ fn raytrace(ray: Ray) -> Hit {
     return closest_hit;
 }
 
+fn brdf(material: Material, ray: Ray) -> vec3<f32> {
+    if material.ty == MATERIAL_LAMBERTIAN {
+        return material.albedo / PI;
+    } else if material.ty == MATERIAL_METAL {
+        return material.albedo;
+    } else {
+        return vec3(0.0);
+    }
+}
+
+fn next_ray(hit: Hit, ray: Ray) -> Ray {
+    if hit.material.ty == MATERIAL_LAMBERTIAN {
+        return Ray(hit.position + hit.normal * 0.0001, generate_cosine_vector(hit.normal));
+    } else if hit.material.ty == MATERIAL_METAL {
+        let dir = reflect(ray.dir, hit.normal);
+        return Ray(
+            hit.position + hit.normal * 0.0001, 
+            mix(dir, generate_cosine_vector(hit.normal), hit.material.roughness)
+        );
+    } else {
+        return ray;
+    }
+}
+
 fn pathtrace(ray: Ray) -> vec3<f32> {
     var incoming_normal = vec3(10.0);
 
@@ -257,9 +279,9 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
 
         incoming_normal = hit.normal;
         radiance += throughput * hit.material.emission;
-        throughput *= hit.material.albedo / PI;
+        throughput *= brdf(hit.material, current_ray);
 
-        current_ray = Ray(hit.position + hit.normal * 0.0001, generate_cosine_vector(hit.normal));
+        current_ray = next_ray(hit, current_ray);
     }
 
     return radiance;
@@ -281,7 +303,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     init_rng(in.texcoord);
 
     let screen_space_pos = vec3(in.texcoord, 1.0);
-    let scene_space_pos = from_screen_space(screen_space_pos, camera.inverse_view_projection_matrix);
+    let world_space_pos = from_screen_space(screen_space_pos, camera.inverse_view_projection_matrix);
+    let scene_space_pos = world_space_pos - camera.pos;
 
     let view_dir = normalize(scene_space_pos);
 

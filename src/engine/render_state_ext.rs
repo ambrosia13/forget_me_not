@@ -1,15 +1,15 @@
-use std::path::Path;
+use std::{fmt::Debug, path::Path};
 
 use crate::render_state::RenderState;
 
 use super::shader::{WgslShader, WgslShaderSource};
 
 pub trait RenderStateExt {
-    fn load_shader<P: AsRef<Path>>(&self, relative_path: P) -> WgslShader;
+    fn load_shader<P: AsRef<Path> + Debug>(&self, relative_path: P) -> WgslShader;
 }
 
 impl RenderStateExt for RenderState {
-    fn load_shader<P: AsRef<Path>>(&self, relative_path: P) -> WgslShader {
+    fn load_shader<P: AsRef<Path> + Debug>(&self, relative_path: P) -> WgslShader {
         let mut source = WgslShaderSource::load(relative_path);
 
         self.device.push_error_scope(wgpu::ErrorFilter::Validation);

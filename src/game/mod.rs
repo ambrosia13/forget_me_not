@@ -2,6 +2,7 @@ pub mod camera;
 pub mod command;
 pub mod event;
 pub mod input;
+pub mod material;
 pub mod object;
 pub mod render;
 pub mod schedule;
@@ -11,6 +12,8 @@ use crate::game::input::MouseMotion;
 use crate::render_state::{LastFrameInstant, RenderState, WindowResizeEvent};
 use bevy_ecs::prelude::World;
 use command::{GameCommand, GameCommands, GameCommandsResource};
+use glam::Vec3;
+use material::Material;
 use std::sync::Arc;
 use winit::event::{DeviceEvent, Event, WindowEvent};
 use winit::event_loop::EventLoop;
@@ -42,20 +45,31 @@ fn init_commands() -> Arc<GameCommands> {
     let game_commands = Arc::new(GameCommands::new());
     let game_commands_copy = game_commands.clone();
 
-    std::thread::spawn(move || loop {
-        let mut input = String::new();
-
-        std::io::stdin().read_line(&mut input).unwrap();
-
-        game_commands.push(match GameCommand::parse(&input) {
-            Some(cmd) => cmd,
-            None => {
-                println!("Unrecognized command {}", input);
-                continue;
-            }
+    std::thread::spawn(move || {
+        let mut material = Some(Material {
+            ty: material::MaterialType::Lambertian,
+            albedo: Vec3::ONE,
+            emission: Vec3::ZERO,
+            roughness: 0.0,
         });
 
-        std::thread::sleep(std::time::Duration::from_secs_f32(0.1));
+        loop {
+            let mut input = String::new();
+
+            std::io::stdin().read_line(&mut input).unwrap();
+
+            let cmd = GameCommand::parse(&input, &mut material);
+
+            game_commands.push(match cmd {
+                Some(cmd) => cmd,
+                None => {
+                    println!("Unrecognized command {}", input);
+                    continue;
+                }
+            });
+
+            std::thread::sleep(std::time::Duration::from_secs_f32(0.1));
+        }
     });
 
     game_commands_copy
