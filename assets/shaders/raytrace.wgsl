@@ -36,11 +36,19 @@ struct Plane {
     material: Material,
 }
 
+struct Aabb {
+    min: vec3<f32>,
+    max: vec3<f32>,
+    material: Material,
+}
+
 struct ObjectsUniform {
     num_spheres: u32,
     num_planes: u32,
+    num_aabbs: u32,
     spheres: array<Sphere, 32>,
     planes: array<Plane, 32>,
+    aabbs: array<Aabb, 32>,
 }
 
 @group(0) @binding(0)
@@ -158,15 +166,11 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
         if t >= 0.0 {
             let point = ray.pos + ray.dir * t;
             let outward_normal = normalize(point - sphere.center);
-            let front_face = dot(ray.dir, outward_normal) < 0.0;
 
-            var normal: vec3<f32>;
+            let dir_dot_normal = dot(ray.dir, outward_normal);
+            let front_face = dir_dot_normal < 0.0;
 
-            if front_face {
-                normal = outward_normal;
-            } else {
-                normal = -outward_normal;
-            }
+            var normal = outward_normal * -sign(dir_dot_normal);
 
             hit.success = true;
             hit.position = point;
@@ -200,13 +204,46 @@ fn ray_plane_intersect(ray: Ray, plane: Plane) -> Hit {
     hit.position = ray.pos + ray.dir * t;
     hit.normal = plane.normal * -sign(denom);
     hit.distance = t;
-    hit.front_face = dot(ray.dir, plane.normal) > 0.0;
+    hit.front_face = true;
+
+    return hit;
+}
+
+fn ray_aabb_intersect(ray: Ray, aabb: Aabb) -> Hit {
+    var hit: Hit;
+    hit.material = aabb.material;
+    hit.front_face = !all(clamp(ray.pos, aabb.min, aabb.max) == ray.pos);
+
+    let t_min = (aabb.min - ray.pos) / ray.dir;
+    let t_max = (aabb.max - ray.pos) / ray.dir;
+
+    let t1 = min(t_min, t_max);
+    let t2 = max(t_min, t_max);
+
+    let t_near = max(max(t1.x, t1.y), t1.z);
+    let t_far = min(min(t2.x, t2.y), t2.z);
+
+    if !hit.front_face { // ray inside box
+        hit.success = true;
+        hit.distance = t_far;     
+        
+        let eq = t2 == vec3(t_far);
+        hit.normal = vec3(f32(eq.x), f32(eq.y), f32(eq.z)) * -sign(ray.dir);   
+    } else {
+        hit.success = !(t_near > t_far || t_far < 0.0);
+        hit.distance = t_near;
+
+        let eq = t1 == vec3(t_near);
+        hit.normal = vec3(f32(eq.x), f32(eq.y), f32(eq.z)) * -sign(ray.dir);
+    }
+
+    hit.position = ray.pos + ray.dir * hit.distance;
 
     return hit;
 }
 
 fn sky(ray: Ray) -> vec3<f32> {
-    return mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
+    return 0.001 * mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
 }
 
 fn get_random_sphere() -> Sphere {
@@ -234,6 +271,13 @@ fn raytrace(ray: Ray) -> Hit {
         let plane = objects.planes[i];
 
         let hit = ray_plane_intersect(ray, plane);
+        closest_hit = merge_hit(closest_hit, hit);
+    }
+
+    for (var i = 0u; i < objects.num_aabbs; i++) {
+        let aabb = objects.aabbs[i];
+
+        let hit = ray_aabb_intersect(ray, aabb);
         closest_hit = merge_hit(closest_hit, hit);
     }
 

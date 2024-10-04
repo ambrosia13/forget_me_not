@@ -12,7 +12,7 @@ use super::{
     camera::Camera,
     input::KeyboardInput,
     material::Material,
-    object::{Objects, Plane, Sphere},
+    object::{Aabb, Objects, Plane, Sphere},
     render::ReloadRenderContextEvent,
 };
 
@@ -74,11 +74,20 @@ impl<'a> GameCommandArgs<'a> {
 }
 
 #[derive(Debug)]
+pub enum GeometryType {
+    Sphere,
+    Plane,
+    Aabb,
+}
+
+#[derive(Debug)]
 pub enum GameCommand {
     PrintPos,
     PrintCamera,
     Sphere(Sphere),
     Plane(Plane),
+    Aabb(Aabb),
+    DeleteLast(GeometryType),
     LookAtSphere,
     LookAt(Vec3),
     ReloadShaders,
@@ -108,6 +117,22 @@ impl GameCommand {
                     point,
                     material.as_mut().copied()?,
                 ))
+            }
+            "aabb" => {
+                let min = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
+                let max = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
+
+                GameCommand::Aabb(Aabb::new(min, max, material.as_mut().copied()?))
+            }
+            "deleteLast" => {
+                let ty = match args.next_str()? {
+                    "sphere" => GeometryType::Sphere,
+                    "plane" => GeometryType::Plane,
+                    "aabb" => GeometryType::Aabb,
+                    _ => return None,
+                };
+
+                GameCommand::DeleteLast(ty)
             }
             "lookAtSphere" => GameCommand::LookAtSphere,
             "lookAt" => {
@@ -218,6 +243,24 @@ pub fn receive_game_commands(
             GameCommand::PrintCamera => log::info!("{:#?}", camera),
             GameCommand::Sphere(sphere) => objects.push_sphere(sphere),
             GameCommand::Plane(plane) => objects.push_plane(plane),
+            GameCommand::Aabb(aabb) => objects.push_aabb(aabb),
+            GameCommand::DeleteLast(ty) => match ty {
+                GeometryType::Sphere => {
+                    if !objects.spheres.is_empty() {
+                        objects.spheres.remove(0);
+                    }
+                }
+                GeometryType::Plane => {
+                    if !objects.planes.is_empty() {
+                        objects.planes.remove(0);
+                    }
+                }
+                GeometryType::Aabb => {
+                    if !objects.aabbs.is_empty() {
+                        objects.aabbs.remove(0);
+                    }
+                }
+            },
             GameCommand::LookAtSphere => camera.look_at(objects.spheres[0].center()),
             GameCommand::LookAt(pos) => camera.look_at(pos),
             GameCommand::ReloadShaders => {

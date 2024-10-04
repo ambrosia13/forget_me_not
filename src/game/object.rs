@@ -77,10 +77,37 @@ impl AsStd140Bytes for Plane {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Aabb {
+    min: Vec3,
+    max: Vec3,
+    material: Material,
+}
+
+impl Aabb {
+    pub fn new(min: Vec3, max: Vec3, material: Material) -> Self {
+        Self { min, max, material }
+    }
+}
+
+impl AsStd140Bytes for Aabb {
+    fn as_std140(&self) -> Std140Bytes {
+        let mut buf = Std140Bytes::new();
+
+        buf.write_vec3(self.min)
+            .write_vec3(self.max)
+            .write_struct(&self.material)
+            .align();
+
+        buf
+    }
+}
+
 #[derive(Debug, Resource)]
 pub struct Objects {
     pub spheres: Vec<Sphere>,
     pub planes: Vec<Plane>,
+    pub aabbs: Vec<Aabb>,
 }
 
 impl Objects {
@@ -88,6 +115,7 @@ impl Objects {
         let objects = Objects {
             spheres: Vec::with_capacity(32),
             planes: Vec::with_capacity(32),
+            aabbs: Vec::with_capacity(32),
         };
 
         commands.insert_resource(objects)
@@ -100,14 +128,20 @@ impl Objects {
     pub fn push_plane(&mut self, plane: Plane) {
         self.planes.insert(0, plane);
     }
+
+    pub fn push_aabb(&mut self, aabb: Aabb) {
+        self.aabbs.insert(0, aabb);
+    }
 }
 
 #[derive(Resource, Debug, Copy, Clone)]
 pub struct ObjectsUniform {
-    spheres: [Sphere; 32],
-    planes: [Plane; 32],
     num_spheres: u32,
     num_planes: u32,
+    num_aabbs: u32,
+    spheres: [Sphere; 32],
+    planes: [Plane; 32],
+    aabbs: [Aabb; 32],
 }
 
 impl ObjectsUniform {
@@ -115,15 +149,18 @@ impl ObjectsUniform {
     pub fn new() -> Self {
         Self {
             num_spheres: 0,
-            spheres: [Sphere::default(); 32],
             num_planes: 0,
+            num_aabbs: 0,
+            spheres: [Sphere::default(); 32],
             planes: [Plane::default(); 32],
+            aabbs: [Aabb::default(); 32],
         }
     }
 
     pub fn from_objects(objects: &Objects) -> Self {
         let mut spheres = [Sphere::default(); 32];
         let mut planes = [Plane::default(); 32];
+        let mut aabbs = [Aabb::default(); 32];
 
         for (i, &sphere) in objects.spheres.iter().enumerate().take(32) {
             spheres[i] = sphere;
@@ -131,12 +168,17 @@ impl ObjectsUniform {
         for (i, &plane) in objects.planes.iter().enumerate().take(32) {
             planes[i] = plane;
         }
+        for (i, &aabb) in objects.aabbs.iter().enumerate().take(32) {
+            aabbs[i] = aabb;
+        }
 
         Self {
             num_spheres: objects.spheres.len() as u32,
-            spheres,
             num_planes: objects.planes.len() as u32,
+            num_aabbs: objects.aabbs.len() as u32,
+            spheres,
             planes,
+            aabbs,
         }
     }
 
@@ -155,6 +197,7 @@ impl AsStd140Bytes for ObjectsUniform {
 
         buf.write_u32(self.num_spheres);
         buf.write_u32(self.num_planes);
+        buf.write_u32(self.num_aabbs);
 
         for sphere in &self.spheres {
             buf.write_struct(sphere);
@@ -162,6 +205,10 @@ impl AsStd140Bytes for ObjectsUniform {
 
         for plane in &self.planes {
             buf.write_struct(plane);
+        }
+
+        for aabb in &self.aabbs {
+            buf.write_struct(aabb);
         }
 
         buf.align();
