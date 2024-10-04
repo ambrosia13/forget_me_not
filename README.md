@@ -6,6 +6,8 @@
 
 ![mirror room](https://github.com/ambrosia13/forget_me_not/blob/main/screenshots/mirror_room.png?raw=true)
 
+![glass boxes](https://github.com/ambrosia13/forget_me_not/blob/main/screenshots/glass_boxes.png?raw=true)
+
 `forget_me_not` is a rendering engine and path tracer written in Rust. It uses the `wgpu` library, which is a native Rust implementation of the WebGPU specification.
 
 The current path tracing implementation is pretty brute-force and simple, though I aim for this project to become a mostly-accurate brute-force path tracer that you can model scenes with.
