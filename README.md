@@ -15,9 +15,10 @@ Currently, there are three types of materials supported:
 - metallic surfaces (surfaces which reflect all light), and 
 - dielectric surfaces (nonmetals that may refract or reflect).
 
-And there are two types of geometry supported: 
+And there are three types of geometry supported: 
 - planes
 - spheres
+- axis-aligned bounding boxes (AABBs)
 
 To create an object, you use the command line. First, you update the current material; all geometry created will use the current material:
 ```
@@ -33,8 +34,24 @@ sphere <center_x> <center_y> <center_z> <radius>
 OR
 
 plane <normal_x> <normal_y> <normal_z> <point_x> <point_y> <point_z>
+
+OR
+
+aabb <min_x> <min_y> <min_z> <max_x> <max_y> <max_z>
 ```
 where `<point_xyz>` defines a point that the plane passes through.
+
+Some other useful commands to know before creating your scene:
+```
+// remove the most recently created shape of this type
+deleteLast <sphere|plane|aabb>
+
+// print the current camera position
+pos
+
+// force the camera to look at a given point
+lookAt <x> <y> <z>
+```
 
 There are also some non-path-tracing features implemented, like bloom and temporal accumulation!
 
