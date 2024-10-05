@@ -1,3 +1,9 @@
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) texcoord: vec2<f32>,
+}
+
 struct CameraUniform {
     view_projection_matrix: mat4x4<f32>,
     inverse_view_projection_matrix: mat4x4<f32>,

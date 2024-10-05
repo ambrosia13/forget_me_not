@@ -65,14 +65,14 @@ pub struct RaytraceRenderContext {
 }
 
 impl RaytraceRenderContext {
+    pub const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba32Float;
+
     pub fn new(
         render_state: &RenderState,
         fullscreen_quad: &FullscreenQuad,
         camera_buffer: &CameraBuffer,
         objects_buffer: &ObjectsBuffer,
     ) -> Self {
-        let color_texture_format = wgpu::TextureFormat::Rgba32Float;
-
         let color_texture_desc = wgpu::TextureDescriptor {
             label: Some("Raytrace Pass Color Texture"),
             size: wgpu::Extent3d {
@@ -83,7 +83,7 @@ impl RaytraceRenderContext {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: color_texture_format,
+            format: RaytraceRenderContext::TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::COPY_DST
@@ -263,7 +263,7 @@ impl RaytraceRenderContext {
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: color_texture_format,
+                            format: RaytraceRenderContext::TEXTURE_FORMAT,
                             blend: None,
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
@@ -417,15 +417,22 @@ pub struct BloomRenderContext {
 }
 
 impl BloomRenderContext {
+    pub const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg11b10Float;
+
     pub fn new(
         render_state: &RenderState,
         fullscreen_quad: &FullscreenQuad,
         input_texture: &wgpu::Texture,
         camera_buffer: &CameraBuffer,
-        mip_levels: u32,
     ) -> Self {
+        let input_texture_size = u32::min(input_texture.width(), input_texture.height());
+        let max_possible_mip_levels = f32::log2(input_texture_size as f32) as u32;
+
+        // use as many mip levels as we can
+        let mip_levels = max_possible_mip_levels;
+
         let input_texture_view = input_texture.create_view(&wgpu::TextureViewDescriptor {
-            format: Some(wgpu::TextureFormat::Rgba32Float),
+            format: Some(input_texture.format()),
             ..Default::default()
         });
 
@@ -451,7 +458,7 @@ impl BloomRenderContext {
                         "Bloom Downsample Lod Buffer (target_mip = {})",
                         target_mip
                     )),
-                    contents: bytemuck::cast_slice(&[target_mip as u32]),
+                    contents: bytemuck::cast_slice(&[target_mip as u32, mip_levels]),
                     usage: wgpu::BufferUsages::UNIFORM,
                 },
             ));
@@ -469,7 +476,7 @@ impl BloomRenderContext {
                 mip_level_count: mip_levels,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba32Float,
+                format: BloomRenderContext::TEXTURE_FORMAT,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING
                     | wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
@@ -498,7 +505,7 @@ impl BloomRenderContext {
         for lod in 0..mip_levels {
             downsample_texture_views.push(downsample_texture.create_view(
                 &wgpu::TextureViewDescriptor {
-                    format: Some(wgpu::TextureFormat::Rgba32Float),
+                    format: Some(downsample_texture.format()),
                     base_mip_level: lod,
                     mip_level_count: Some(1),
                     ..Default::default()
@@ -659,7 +666,7 @@ impl BloomRenderContext {
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba32Float,
+                            format: BloomRenderContext::TEXTURE_FORMAT,
                             blend: None,
                             write_mask: wgpu::ColorWrites::all(),
                         })],
@@ -679,7 +686,7 @@ impl BloomRenderContext {
                 mip_level_count: mip_levels,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba32Float,
+                format: BloomRenderContext::TEXTURE_FORMAT,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING
                     | wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
@@ -708,7 +715,7 @@ impl BloomRenderContext {
         for target_mip in 0..mip_levels {
             upsample_texture_views.push(upsample_texture.create_view(
                 &wgpu::TextureViewDescriptor {
-                    format: Some(wgpu::TextureFormat::Rgba32Float),
+                    format: Some(upsample_texture.format()),
                     base_mip_level: target_mip,
                     mip_level_count: Some(1),
                     ..Default::default()
@@ -737,6 +744,16 @@ impl BloomRenderContext {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -757,6 +774,10 @@ impl BloomRenderContext {
                         wgpu::BindGroupEntry {
                             binding: 1,
                             resource: wgpu::BindingResource::Sampler(&downsample_texture_sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: lod_buffers.last().unwrap().as_entire_binding(),
                         },
                     ],
                 });
@@ -805,7 +826,7 @@ impl BloomRenderContext {
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba32Float,
+                            format: BloomRenderContext::TEXTURE_FORMAT,
                             blend: None,
                             write_mask: wgpu::ColorWrites::all(),
                         })],
@@ -851,6 +872,26 @@ impl BloomRenderContext {
                             binding: 3,
                             visibility: wgpu::ShaderStages::FRAGMENT,
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 4,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 5,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
                             count: None,
                         },
                     ],
@@ -899,7 +940,7 @@ impl BloomRenderContext {
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba32Float,
+                            format: BloomRenderContext::TEXTURE_FORMAT,
                             blend: None,
                             write_mask: wgpu::ColorWrites::all(),
                         })],
@@ -940,6 +981,14 @@ impl BloomRenderContext {
                             binding: 3,
                             resource: wgpu::BindingResource::Sampler(&downsample_texture_sampler),
                         },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: lod_buffers[target_mip].as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: camera_buffer.buffer.as_entire_binding(),
+                        },
                     ],
                 },
             ));
@@ -957,7 +1006,7 @@ impl BloomRenderContext {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba32Float,
+                format: BloomRenderContext::TEXTURE_FORMAT,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING
                     | wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
@@ -1003,6 +1052,16 @@ impl BloomRenderContext {
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 4,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                 });
 
@@ -1033,6 +1092,10 @@ impl BloomRenderContext {
                         wgpu::BindGroupEntry {
                             binding: 3,
                             resource: wgpu::BindingResource::Sampler(&upsample_texture_sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: lod_buffers[0].as_entire_binding(),
                         },
                     ],
                 });
@@ -1080,7 +1143,7 @@ impl BloomRenderContext {
                         entry_point: "fragment",
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba32Float,
+                            format: BloomRenderContext::TEXTURE_FORMAT,
                             blend: None,
                             write_mask: wgpu::ColorWrites::all(),
                         })],
@@ -1219,7 +1282,7 @@ impl BloomRenderContext {
         let bloom_texture_view = self
             .bloom_texture
             .create_view(&wgpu::TextureViewDescriptor {
-                format: Some(wgpu::TextureFormat::Rgba32Float),
+                format: Some(self.bloom_texture.format()),
                 base_mip_level: 0,
                 mip_level_count: None,
                 ..Default::default()
@@ -1264,7 +1327,6 @@ impl BloomRenderContext {
             &fullscreen_quad,
             &raytrace_render_context.color_texture,
             &camera_buffer,
-            7,
         );
         commands.insert_resource(bloom_render_context);
     }
@@ -1287,7 +1349,6 @@ impl BloomRenderContext {
                 &fullscreen_quad,
                 &raytrace_render_context.color_texture,
                 &camera_buffer,
-                7,
             );
         }
 
@@ -1297,7 +1358,6 @@ impl BloomRenderContext {
                 &fullscreen_quad,
                 &raytrace_render_context.color_texture,
                 &camera_buffer,
-                7,
             );
         }
 

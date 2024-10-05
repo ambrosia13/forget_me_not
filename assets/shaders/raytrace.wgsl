@@ -4,12 +4,6 @@ const PI: f32 = 3.1415926535897932384626433832795;
 const HALF_PI: f32 = 1.57079632679489661923; 
 const TAU: f32 = 6.2831853071795864769252867665590; 
 
-struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-    @location(1) texcoord: vec2<f32>,
-}
-
 const MATERIAL_LAMBERTIAN: u32 = 0u;
 const MATERIAL_METAL: u32 = 1u;
 const MATERIAL_DIELECTRIC: u32 = 2u;
@@ -243,7 +237,7 @@ fn ray_aabb_intersect(ray: Ray, aabb: Aabb) -> Hit {
 }
 
 fn sky(ray: Ray) -> vec3<f32> {
-    return 0.001 * mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
+    return mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
 }
 
 fn get_random_sphere() -> Sphere {

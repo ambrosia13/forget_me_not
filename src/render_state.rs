@@ -41,7 +41,8 @@ impl RenderState {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    required_features: wgpu::Features::FLOAT32_FILTERABLE,
+                    required_features: wgpu::Features::FLOAT32_FILTERABLE
+                        | wgpu::Features::RG11B10UFLOAT_RENDERABLE,
                     required_limits: wgpu::Limits::default(),
                 },
                 None,
