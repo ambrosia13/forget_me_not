@@ -1,5 +1,5 @@
-#include assets/shaders/header.wgsl
-#include assets/shaders/bloom_header.wgsl
+#include assets/shaders/lib/header.wgsl
+#include assets/shaders/lib/bloom.wgsl
 
 @group(0) @binding(0)
 var color_texture: texture_2d<f32>;

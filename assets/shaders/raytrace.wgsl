@@ -1,4 +1,6 @@
-#include assets/shaders/header.wgsl
+#include assets/shaders/lib/header.wgsl
+#include assets/shaders/lib/rand.wgsl
+#include assets/shaders/lib/rt/intersect.wgsl
 
 const PI: f32 = 3.1415926535897932384626433832795;
 const HALF_PI: f32 = 1.57079632679489661923; 
@@ -9,32 +11,6 @@ const MATERIAL_METAL: u32 = 1u;
 const MATERIAL_DIELECTRIC: u32 = 2u;
 
 const IOR_AIR: f32 = 1.000293;
-
-struct Material {
-    ty: u32,
-    albedo: vec3<f32>,
-    emission: vec3<f32>,
-    roughness: f32,
-    ior: f32,
-}
-
-struct Sphere {
-    center: vec3<f32>,
-    radius: f32,
-    material: Material,
-}
-
-struct Plane {
-    normal: vec3<f32>,
-    point: vec3<f32>,
-    material: Material,
-}
-
-struct Aabb {
-    min: vec3<f32>,
-    max: vec3<f32>,
-    material: Material,
-}
 
 struct ObjectsUniform {
     num_spheres: u32,
@@ -57,198 +33,8 @@ var previous_color_texture: texture_2d<f32>;
 @group(2) @binding(1)
 var previous_color_sampler: sampler;
 
-// NOISE ---------------------------
-
-var<private> rng_state: u32;
-
-fn init_rng(texcoord: vec2<f32>) {
-    let frag_coord: vec2<f32> = vec2(texcoord.x * f32(camera.view_width), texcoord.y * f32(camera.view_height));
-
-    let rng_ptr = &rng_state;
-    *rng_ptr = u32(camera.view_width * camera.view_height) * (camera.frame_count + 1) * u32(frag_coord.x + frag_coord.y * f32(camera.view_width));
-}
-
-fn pcg(seed: ptr<private, u32>) {
-    let state: u32 = *seed * 747796405u + 2891336453u;
-    let word: u32 = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-    *seed = (word >> 22u) ^ word;
-}
-
-fn next_u32() -> u32 {
-    pcg(&rng_state);
-    return rng_state;
-}
-
-fn next_f32() -> f32 {
-    return f32(next_u32()) / f32(0xFFFFFFFFu);
-}
-
-fn generate_unit_vector() -> vec3<f32> {
-    var xy = vec2(next_f32(), next_f32());
-    xy.x *= TAU;
-    xy.y = 2.0 * xy.y - 1.0;
-
-    return (vec3(vec2(sin(xy.x), cos(xy.x)) * sqrt(1.0 - xy.y * xy.y), xy.y));
-}
-
-fn generate_cosine_vector(normal: vec3<f32>) -> vec3<f32> {
-    return normalize(normal + generate_unit_vector());
-}
-
-fn generate_cosine_vector_from_roughness(normal: vec3<f32>, roughness: f32) -> vec3<f32> {
-    return normalize(normal + generate_unit_vector() * roughness);
-}
-
-// END NOISE ---------------------------
-
-struct Ray {
-    pos: vec3<f32>,
-    dir: vec3<f32>,
-}
-
-struct Hit {
-    success: bool,
-    position: vec3<f32>,
-    normal: vec3<f32>,
-    distance: f32,
-    front_face: bool,
-    material: Material,
-}
-
-fn merge_hit(a: Hit, b: Hit) -> Hit {
-    var hit: Hit;
-
-    if !(a.success || b.success) {
-        hit.success = false;
-        return hit;
-    } else if a.success && !b.success {
-        return a;
-    } else if b.success && !a.success {
-        return b;
-    } else {
-        if a.distance < b.distance {
-            hit = a;
-        } else {
-            hit = b;
-        }
-    }
-
-    return hit;
-}
-
-fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
-    var hit: Hit;
-    hit.success = false;
-    hit.material = sphere.material;
-
-    let origin_to_center = ray.pos - sphere.center;
-
-    let b = dot(origin_to_center, ray.dir);
-    let a = dot(ray.dir, ray.dir);
-    let c = dot(origin_to_center, origin_to_center) - sphere.radius * sphere.radius;
-
-    let determinant = b * b - a * c;
-
-    if determinant >= 0.0 {
-        let determinant_sqrt = sqrt(determinant);
-        var t = (-b - determinant_sqrt) / a;
-
-        if t < 0.0 {
-            t = (-b + determinant_sqrt) / a;
-        }
-
-        if t >= 0.0 {
-            let point = ray.pos + ray.dir * t;
-            let outward_normal = normalize(point - sphere.center);
-
-            let dir_dot_normal = dot(ray.dir, outward_normal);
-            let front_face = dir_dot_normal < 0.0;
-
-            var normal = outward_normal * -sign(dir_dot_normal);
-
-            hit.success = true;
-            hit.position = point;
-            hit.normal = normal;
-            hit.distance = t;
-            hit.front_face = front_face;
-        }
-    }
-
-    return hit;
-}
-
-fn ray_plane_intersect(ray: Ray, plane: Plane) -> Hit {
-    var hit: Hit;
-    hit.success = false;
-    hit.material = plane.material;
-
-    let denom = dot(plane.normal, ray.dir);
-
-    if abs(denom) < 1e-6 {
-        return hit;
-    }
-
-    let t = dot(plane.normal, plane.point - ray.pos) / denom;
-
-    if t < 0.0 {
-        return hit;
-    }
-
-    hit.success = true;
-    hit.position = ray.pos + ray.dir * t;
-    hit.normal = plane.normal * -sign(denom);
-    hit.distance = t;
-    hit.front_face = true;
-
-    return hit;
-}
-
-fn ray_aabb_intersect(ray: Ray, aabb: Aabb) -> Hit {
-    var hit: Hit;
-    hit.material = aabb.material;
-    hit.front_face = !all(clamp(ray.pos, aabb.min, aabb.max) == ray.pos);
-
-    let t_min = (aabb.min - ray.pos) / ray.dir;
-    let t_max = (aabb.max - ray.pos) / ray.dir;
-
-    let t1 = min(t_min, t_max);
-    let t2 = max(t_min, t_max);
-
-    let t_near = max(max(t1.x, t1.y), t1.z);
-    let t_far = min(min(t2.x, t2.y), t2.z);
-
-    if !hit.front_face { // ray inside box
-        hit.success = true;
-        hit.distance = t_far;     
-        
-        let eq = t2 == vec3(t_far);
-        hit.normal = vec3(f32(eq.x), f32(eq.y), f32(eq.z)) * -sign(ray.dir);   
-    } else {
-        hit.success = !(t_near > t_far || t_far < 0.0);
-        hit.distance = t_near;
-
-        let eq = t1 == vec3(t_near);
-        hit.normal = vec3(f32(eq.x), f32(eq.y), f32(eq.z)) * -sign(ray.dir);
-    }
-
-    hit.position = ray.pos + ray.dir * hit.distance;
-
-    return hit;
-}
-
 fn sky(ray: Ray) -> vec3<f32> {
     return mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
-}
-
-fn get_random_sphere() -> Sphere {
-    return objects.spheres[next_u32() % objects.num_spheres];
-}
-
-fn generate_ray_to_sphere(ray: Ray, sphere: Sphere) -> Ray {
-    let point = sphere.center + generate_unit_vector() * sphere.radius;
-    let dir = normalize(point - ray.pos);
-
-    return Ray(ray.pos, dir);
 }
 
 fn raytrace(ray: Ray) -> Hit {
@@ -278,11 +64,11 @@ fn raytrace(ray: Ray) -> Hit {
     return closest_hit;
 }
 
-fn schlick_approximation(cos_theta: f32, ior: f32) -> f32 {
+// Schlick approximation for reflectance
+fn reflectance(cos_theta: f32, ior: f32) -> f32 {
     var r0 = (1.0 - ior) / (1.0 + ior);
     r0 *= r0;
 
-    //return clamp(-(1.0 - cos_theta), 0.0, 1.0);
     return r0 + (1.0 - r0) * pow(1.0 - cos_theta, 5.0);
 }
 
@@ -325,7 +111,7 @@ fn material_hit_result(hit: Hit, ray: Ray) -> MaterialHitResult {
         var pos = hit.position;
         var dir = vec3(0.0);
 
-        if cannot_refract || schlick_approximation(cos_theta, ior) > next_f32() {
+        if cannot_refract || reflectance(cos_theta, ior) > next_f32() {
             brdf = vec3(1.0);
             
             dir = reflect(ray.dir, hit.normal);
@@ -397,30 +183,13 @@ fn to_screen_space(pos: vec3<f32>, matrix: mat4x4<f32>) -> vec3<f32> {
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    init_rng(in.texcoord);
+    init_rng(in.texcoord, camera.view_width, camera.view_height, camera.frame_count);
 
     let screen_space_pos = vec3(in.texcoord, 1.0);
     let world_space_pos = from_screen_space(screen_space_pos, camera.inverse_view_projection_matrix);
     let scene_space_pos = world_space_pos - camera.pos;
 
     let view_dir = normalize(scene_space_pos);
-
-    let position_difference = camera.pos - camera.previous_pos;
-    let previous_screen_space_pos = to_screen_space(scene_space_pos + position_difference, camera.previous_view_projection_matrix);
-
-    let previous_uv = vec2(
-        previous_screen_space_pos.x,
-        1.0 - previous_screen_space_pos.y,
-    );
-
-    var camera_view = from_screen_space(vec3(0.5, 0.5, 1.0), camera.inverse_view_projection_matrix);
-    let previous_camera_view = normalize(to_screen_space(camera_view, camera.previous_view_projection_matrix));
-
-    camera_view = normalize(camera_view);
-
-    // if any(camera_view != previous_camera_view) {
-    //     return vec4(1.0, 0.0, 0.0, 1.0);
-    // }
 
     var ray: Ray;
     ray.pos = camera.pos;
