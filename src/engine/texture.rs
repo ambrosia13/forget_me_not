@@ -2,6 +2,8 @@ use std::{error::Error, fmt::Display};
 
 use derived_deref::Deref;
 
+pub type HdrImageBuffer = image::ImageBuffer<image::Rgba<f32>, Vec<f32>>;
+
 #[derive(Debug)]
 pub enum WgpuTextureLoadError {
     IoError(std::io::Error),
