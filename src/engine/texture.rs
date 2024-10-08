@@ -1,56 +1,6 @@
-use std::{
-    error::Error,
-    fmt::{Debug, Display},
-    path::{Path, PathBuf},
-};
+use std::{error::Error, fmt::Display};
 
 use derived_deref::Deref;
-
-// pub enum TextureSource {
-//     File { name: String, path: PathBuf },
-//     Fallback,
-// }
-
-// impl TextureSource {
-//     fn read_file<P: AsRef<Path>>(relative_path: P) -> Result<Self, std::io::Error> {
-//         let parent_path = std::env::current_dir()?;
-//         let path = parent_path.join(relative_path);
-
-//         path.try_exists()?;
-
-//         let name = path.file_name().unwrap().to_str().unwrap().to_owned();
-
-//         Ok(Self::File { name, path })
-//     }
-
-//     pub fn load<P: AsRef<Path> + Debug>(relative_path: P) -> Self {
-//         match Self::read_file(&relative_path) {
-//             Ok(s) => s,
-//             Err(_) => {
-//                 log::warn!(
-//                     "Texture at path {:?} failed to load, substituting fallback texture.",
-//                     relative_path
-//                 );
-//                 Self::Fallback
-//             }
-//         }
-//     }
-
-//     pub fn fallback() -> Self {
-//         Self::Fallback
-//     }
-// }
-
-// pub struct TextureData {
-//     source: TextureSource,
-//     extent: wgpu::Extent3d,
-// }
-
-// impl TextureData {
-//     pub fn load<P: AsRef<Path> + Debug>(relative_path: P) -> Self {
-//         let source =
-//     }
-// }
 
 #[derive(Debug)]
 pub enum WgpuTextureLoadError {

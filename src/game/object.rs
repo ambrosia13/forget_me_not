@@ -8,10 +8,7 @@ use crate::{
     util::buffer::{AsStd140Bytes, Std140Bytes},
 };
 
-use super::{
-    camera::Camera,
-    material::{Material, MaterialType},
-};
+use super::material::{Material, MaterialType};
 
 const PAD_THICKNESS: f32 = 0.00025;
 
@@ -290,7 +287,7 @@ impl ObjectsUniform {
         }
     }
 
-    pub fn from_objects(objects: &Objects, camera: &Camera) -> Self {
+    pub fn from_objects(objects: &Objects) -> Self {
         let mut spheres = [Sphere::default(); 32];
         let mut planes = [Plane::default(); 32];
         let mut aabbs = [Aabb::default(); 32];
@@ -319,12 +316,8 @@ impl ObjectsUniform {
         commands.insert_resource(ObjectsUniform::new());
     }
 
-    pub fn update(
-        mut objects_uniform: ResMut<ObjectsUniform>,
-        objects: Res<Objects>,
-        camera: Res<Camera>,
-    ) {
-        *objects_uniform = ObjectsUniform::from_objects(&objects, &camera);
+    pub fn update(mut objects_uniform: ResMut<ObjectsUniform>, objects: Res<Objects>) {
+        *objects_uniform = ObjectsUniform::from_objects(&objects);
     }
 }
 
@@ -377,14 +370,18 @@ impl ObjectsBuffer {
     }
 
     pub fn update(
+        objects: Res<Objects>,
         objects_uniform: Res<ObjectsUniform>,
         objects_buffer: Res<ObjectsBuffer>,
         render_state: Res<RenderState>,
     ) {
-        render_state.queue.write_buffer(
-            &objects_buffer.buffer,
-            0,
-            bytemuck::cast_slice(objects_uniform.as_std140().as_slice()),
-        );
+        // we don't need to write to the buffer unless an object was added or removed
+        if objects.is_changed() {
+            render_state.queue.write_buffer(
+                &objects_buffer.buffer,
+                0,
+                bytemuck::cast_slice(objects_uniform.as_std140().as_slice()),
+            );
+        }
     }
 }

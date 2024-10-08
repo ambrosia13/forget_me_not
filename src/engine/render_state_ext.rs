@@ -1,12 +1,10 @@
 use std::{
-    error::Error,
     fmt::Debug,
     path::{Path, PathBuf},
 };
 
 use image::{EncodableLayout, ImageBuffer, Rgba};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use wgpu::util::DeviceExt;
 
 use crate::render_state::RenderState;
 
