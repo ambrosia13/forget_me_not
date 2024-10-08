@@ -1,6 +1,6 @@
 use crate::game::input::{KeyboardInput, MouseMotion};
 use crate::render_state::{LastFrameInstant, RenderState, WindowResizeEvent};
-use crate::util::buffer::Std140Bytes;
+use crate::util::buffer::{AsStd140Bytes, Std140Bytes};
 use bevy_ecs::prelude::*;
 use glam::{Mat3, Mat4, Quat, Vec3, Vec4};
 use wgpu::util::DeviceExt;
@@ -201,98 +201,155 @@ impl Camera {
     }
 }
 
-#[derive(Resource, Debug, Copy, Clone)]
+#[derive(Resource, Default, Debug)]
 pub struct CameraUniform {
+    // view_projection_matrix: Mat4,
+    // inverse_view_projection_matrix: Mat4,
+    // view_matrix: Mat4,
+    // inverse_view_matrix: Mat4,
+    // previous_view_projection_matrix: Mat4,
+    // pos: Vec3,
+    // previous_pos: Vec3,
+    // view_width: u32,
+    // view_height: u32,
+    // frame_count: u32,
+    // should_accumulate: u32,
     view_projection_matrix: Mat4,
-    inverse_view_projection_matrix: Mat4,
     view_matrix: Mat4,
+    projection_matrix: Mat4,
+
+    inverse_view_projection_matrix: Mat4,
     inverse_view_matrix: Mat4,
+    inverse_projection_matrix: Mat4,
+
     previous_view_projection_matrix: Mat4,
-    pos: Vec3,
-    previous_pos: Vec3,
-    view_width: u32,
-    view_height: u32,
-    frame_count: u32,
-    should_accumulate: u32,
+    previous_view_matrix: Mat4,
+    previous_projection_matrix: Mat4,
+
+    position: Vec3,
+    previous_position: Vec3,
+
+    view: Vec3,
+    previous_view: Vec3,
 }
 
 impl CameraUniform {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        Self {
-            view_projection_matrix: Mat4::IDENTITY,
-            inverse_view_projection_matrix: Mat4::IDENTITY,
-            view_matrix: Mat4::IDENTITY,
-            inverse_view_matrix: Mat4::IDENTITY,
-            previous_view_projection_matrix: Mat4::IDENTITY,
-            pos: Vec3::ZERO,
-            previous_pos: Vec3::ZERO,
-            view_width: 0,
-            view_height: 0,
-            frame_count: 0,
-            should_accumulate: 0,
-        }
-    }
-
-    pub fn from_camera(camera: &Camera, frame_count: u32) -> Self {
+    pub fn from_camera(camera: &Camera) -> Self {
         let view_matrix = camera.get_view_matrix();
-        let inverse_view_matrix = view_matrix.inverse();
+        let projection_matrix = camera.get_projection_matrix();
+        let view_projection_matrix = projection_matrix * view_matrix;
 
-        let view_projection_matrix = camera.get_projection_matrix() * view_matrix;
+        let inverse_view_matrix = view_matrix.inverse();
+        let inverse_projection_matrix = projection_matrix.inverse();
         let inverse_view_projection_matrix = view_projection_matrix.inverse();
+
+        let position = camera.position;
+        let view = camera.forward();
 
         Self {
             view_projection_matrix,
-            inverse_view_projection_matrix,
             view_matrix,
+            projection_matrix,
+
+            inverse_view_projection_matrix,
             inverse_view_matrix,
-            previous_view_projection_matrix: inverse_view_matrix,
-            pos: camera.position,
-            previous_pos: camera.position,
-            view_width: camera.view_width,
-            view_height: camera.view_height,
-            frame_count,
-            should_accumulate: 0,
+            inverse_projection_matrix,
+
+            previous_view_projection_matrix: view_projection_matrix,
+            previous_view_matrix: view_matrix,
+            previous_projection_matrix: projection_matrix,
+
+            position,
+            previous_position: position,
+
+            view,
+            previous_view: view,
         }
     }
 
     pub fn init(mut commands: Commands) {
-        commands.insert_resource(CameraUniform::new());
+        commands.insert_resource(CameraUniform::default());
     }
 
     pub fn update(mut camera_uniform: ResMut<CameraUniform>, camera: Res<Camera>) {
-        let view_proj = camera_uniform.view_projection_matrix;
-        let pos = camera_uniform.pos;
+        // Values of the previous uniform become the "previous_" values of the current uniform
+        let previous_view_projection_matrix = camera_uniform.view_projection_matrix;
+        let previous_view_matrix = camera_uniform.view_matrix;
+        let previous_projection_matrix = camera_uniform.projection_matrix;
 
-        *camera_uniform =
-            CameraUniform::from_camera(&camera, camera_uniform.frame_count.wrapping_add(1));
+        let previous_position = camera_uniform.position;
+        let previous_view = camera_uniform.view;
 
-        camera_uniform.previous_view_projection_matrix = view_proj;
-        camera_uniform.previous_pos = pos;
+        *camera_uniform = CameraUniform {
+            previous_view_projection_matrix,
+            previous_view_matrix,
+            previous_projection_matrix,
 
-        camera_uniform.should_accumulate = if camera_uniform.previous_pos == camera_uniform.pos
-            && camera.forward() == camera.previous_view_direction
-        {
-            1
-        } else {
-            0
+            previous_position,
+            previous_view,
+
+            ..CameraUniform::from_camera(&camera)
         };
     }
+}
 
-    pub fn as_gpu_bytes(&self) -> Std140Bytes {
+impl AsStd140Bytes for CameraUniform {
+    fn as_std140(&self) -> Std140Bytes {
         let mut buf = Std140Bytes::new();
 
         buf.write_mat4(self.view_projection_matrix)
-            .write_mat4(self.inverse_view_projection_matrix)
             .write_mat4(self.view_matrix)
+            .write_mat4(self.projection_matrix)
+            .write_mat4(self.inverse_view_projection_matrix)
             .write_mat4(self.inverse_view_matrix)
+            .write_mat4(self.inverse_projection_matrix)
             .write_mat4(self.previous_view_projection_matrix)
-            .write_vec3(self.pos)
-            .write_vec3(self.previous_pos)
-            .write_u32(self.view_width)
-            .write_u32(self.view_height)
+            .write_mat4(self.previous_view_matrix)
+            .write_mat4(self.previous_projection_matrix)
+            .write_vec3(self.position)
+            .write_vec3(self.previous_position)
+            .write_vec3(self.view)
+            .write_vec3(self.previous_view)
+            .align();
+
+        buf
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct ViewUniform {
+    width: u32,
+    height: u32,
+
+    frame_count: u32,
+}
+
+impl ViewUniform {
+    pub fn new(render_state: &RenderState, frame_count: u32) -> Self {
+        Self {
+            width: render_state.size.width,
+            height: render_state.size.height,
+            frame_count,
+        }
+    }
+
+    pub fn init(world: &mut World) {
+        world.insert_resource(ViewUniform::default());
+    }
+
+    pub fn update(mut view_uniform: ResMut<ViewUniform>, render_state: Res<RenderState>) {
+        let frame_count = view_uniform.frame_count.wrapping_add(1);
+        *view_uniform = ViewUniform::new(&render_state, frame_count);
+    }
+}
+
+impl AsStd140Bytes for ViewUniform {
+    fn as_std140(&self) -> Std140Bytes {
+        let mut buf = Std140Bytes::new();
+
+        buf.write_u32(self.width)
+            .write_u32(self.height)
             .write_u32(self.frame_count)
-            .write_u32(self.should_accumulate)
             .align();
 
         buf
@@ -309,13 +366,20 @@ impl CameraBuffer {
         mut commands: Commands,
         render_state: Res<RenderState>,
         camera_uniform: Res<CameraUniform>,
+        view_uniform: Res<ViewUniform>,
     ) {
+        let mut buffer_data = Std140Bytes::new();
+
+        buffer_data.write_struct(&*camera_uniform);
+        buffer_data.write_struct(&*view_uniform);
+        buffer_data.align();
+
         commands.insert_resource(CameraBuffer {
             buffer: render_state
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Camera Uniform Buffer"),
-                    contents: camera_uniform.as_gpu_bytes().as_slice(),
+                    contents: buffer_data.as_slice(),
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 }),
         });
@@ -323,13 +387,18 @@ impl CameraBuffer {
 
     pub fn update(
         camera_uniform: Res<CameraUniform>,
+        view_uniform: Res<ViewUniform>,
         camera_buffer: Res<CameraBuffer>,
         render_state: Res<RenderState>,
     ) {
-        render_state.queue.write_buffer(
-            &camera_buffer.buffer,
-            0,
-            camera_uniform.as_gpu_bytes().as_slice(),
-        );
+        let mut buffer_data = Std140Bytes::new();
+
+        buffer_data.write_struct(&*camera_uniform);
+        buffer_data.write_struct(&*view_uniform);
+        buffer_data.align();
+
+        render_state
+            .queue
+            .write_buffer(&camera_buffer.buffer, 0, buffer_data.as_slice());
     }
 }

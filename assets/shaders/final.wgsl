@@ -6,7 +6,7 @@ var color_texture: texture_2d<f32>;
 var color_sampler: sampler;
 
 @group(1) @binding(0)
-var<uniform> camera: CameraUniform;
+var<uniform> screen: ScreenUniforms;
 
 const FRX_ACES_INPUT_MATRIX: mat3x3<f32> = mat3x3(
     vec3(0.59719, 0.07600, 0.02840),
@@ -39,20 +39,6 @@ fn frx_tone_map(col: vec3<f32>) -> vec3<f32> {
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = textureSample(color_texture, color_sampler, in.uv);
-
-    let screen_space_pos = vec3(in.texcoord, 1.0);
-    let clip_space_pos = screen_space_pos * 2.0 - 1.0;
-
-    let temp = (camera.inverse_view_projection_matrix * vec4(clip_space_pos, 1.0));
-    let world_space_pos = temp.xyz / temp.w;
-    let view_space_pos = world_space_pos - camera.pos;
-
-    let view_dir = normalize(view_space_pos);
-
-    // if depth == 1.0 {
-    //     let mix_factor = smoothstep(0.0, 0.2, clamp(view_dir.y, 0.0, 1.0));
-    //     color = vec4(mix(vec3(1.0, 1.0, 1.0), vec3(0.25, 0.5, 1.0), mix_factor), 1.0);
-    // }
 
     color = vec4(pow(color.rgb, vec3(1.0 / 2.2)), color.a);
     color = vec4(frx_tone_map(color.rgb), color.a);

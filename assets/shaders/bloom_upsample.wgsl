@@ -17,7 +17,7 @@ var downsample_sampler: sampler;
 var<uniform> lod_info: LodInfo;
 
 @group(0) @binding(5)
-var<uniform> camera: CameraUniform;
+var<uniform> screen: ScreenUniforms;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -25,7 +25,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         previous_upsample_mip_texture, 
         upsample_sampler, 
         in.uv, 
-        vec2(camera.view_width >> lod_info.current_lod, camera.view_height >> lod_info.current_lod)
+        vec2(screen.view.width >> lod_info.current_lod, screen.view.height >> lod_info.current_lod)
     );
 
     let current = textureSample(downsample_texture, downsample_sampler, in.uv);

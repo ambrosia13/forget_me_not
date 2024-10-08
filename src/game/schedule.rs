@@ -111,6 +111,7 @@ pub fn create_render_init_schedule() -> Schedule {
         (
             engine::WgpuResourceRegistry::init,
             camera::CameraUniform::init,
+            camera::ViewUniform::init,
             camera::CameraBuffer::init,
             object::ObjectsUniform::init,
             object::ObjectsBuffer::init,
@@ -132,6 +133,7 @@ pub fn create_render_update_schedule() -> Schedule {
     schedule.add_systems(
         (
             camera::CameraUniform::update,
+            camera::ViewUniform::update,
             camera::CameraBuffer::update,
             object::ObjectsUniform::update,
             object::ObjectsBuffer::update,

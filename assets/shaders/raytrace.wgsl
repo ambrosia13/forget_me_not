@@ -1,4 +1,5 @@
 #include assets/shaders/lib/header.wgsl
+#include assets/shaders/lib/space.wgsl
 #include assets/shaders/lib/rand.wgsl
 #include assets/shaders/lib/rt/intersect.wgsl
 #include assets/shaders/lib/rt/stack.wgsl
@@ -23,7 +24,7 @@ struct ObjectsUniform {
 }
 
 @group(0) @binding(0)
-var<uniform> camera: CameraUniform;
+var<uniform> screen: ScreenUniforms;
 
 @group(1) @binding(0)
 var<uniform> objects: ObjectsUniform;
@@ -164,7 +165,11 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
 
     var bounces = 5;
     
-    if camera.should_accumulate == 1 {
+    let should_accumulate = 
+        all(screen.camera.position == screen.camera.previous_position) &&
+        all(screen.camera.view == screen.camera.previous_view);
+
+    if should_accumulate {
         bounces = 50;
     }
 
@@ -192,29 +197,18 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
     return radiance;
 }
 
-fn from_screen_space(screen_space_pos: vec3<f32>, matrix: mat4x4<f32>) -> vec3<f32> {
-    let clip_space_pos = screen_space_pos * 2.0 - 1.0;
-    let temp = matrix * vec4(clip_space_pos, 1.0);
-    return temp.xyz / temp.w;
-}
-
-fn to_screen_space(pos: vec3<f32>, matrix: mat4x4<f32>) -> vec3<f32> {
-    let temp = matrix * vec4(pos, 1.0);
-    return (temp.xyz / temp.w) * 0.5 + 0.5;
-}
-
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    init_rng(in.texcoord, camera.view_width, camera.view_height, camera.frame_count);
+    init_rng(in.texcoord, screen.view.width, screen.view.height, screen.view.frame_count);
 
     let screen_space_pos = vec3(in.texcoord, 1.0);
-    let world_space_pos = from_screen_space(screen_space_pos, camera.inverse_view_projection_matrix);
-    let scene_space_pos = world_space_pos - camera.pos;
+    let world_space_pos = from_screen_space(screen_space_pos, screen.camera.inverse_view_projection_matrix);
+    let scene_space_pos = world_space_pos - screen.camera.position;
 
     let view_dir = normalize(scene_space_pos);
 
     var ray: Ray;
-    ray.pos = camera.pos;
+    ray.pos = screen.camera.position;
     ray.dir = view_dir;
 
     var color = vec3(0.0);
@@ -228,7 +222,11 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let previous_color = sample.rgb;
     var frame_age = sample.a;
 
-    if camera.should_accumulate == 0 {
+    let should_accumulate = 
+        all(screen.camera.position == screen.camera.previous_position) &&
+        all(screen.camera.view == screen.camera.previous_view);
+
+    if !should_accumulate {
         frame_age = 0.0;
     }
 
