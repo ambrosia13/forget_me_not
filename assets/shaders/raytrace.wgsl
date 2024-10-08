@@ -1,6 +1,7 @@
 #include assets/shaders/lib/header.wgsl
 #include assets/shaders/lib/rand.wgsl
 #include assets/shaders/lib/rt/intersect.wgsl
+#include assets/shaders/lib/rt/stack.wgsl
 
 const PI: f32 = 3.1415926535897932384626433832795;
 const HALF_PI: f32 = 1.57079632679489661923; 
@@ -33,8 +34,14 @@ var previous_color_texture: texture_2d<f32>;
 @group(2) @binding(1)
 var previous_color_sampler: sampler;
 
+@group(2) @binding(2)
+var cubemap_texture: texture_cube<f32>;
+
+@group(2) @binding(3)
+var cubemap_sampler: sampler;
+
 fn sky(ray: Ray) -> vec3<f32> {
-    return mix(vec3(1.0, 1.0, 1.0), vec3(0.05, 0.1, 1.0), smoothstep(-0.4, 0.2, ray.dir.y));
+    return pow(textureSample(cubemap_texture, cubemap_sampler, ray.dir).rgb, vec3(2.2));
 }
 
 fn raytrace(ray: Ray) -> Hit {
@@ -77,7 +84,7 @@ struct MaterialHitResult {
     next_ray: Ray,
 }
 
-fn material_hit_result(hit: Hit, ray: Ray) -> MaterialHitResult {
+fn material_hit_result(hit: Hit, ray: Ray, stack: ptr<function, Stack>) -> MaterialHitResult {
     if hit.material.ty == MATERIAL_LAMBERTIAN {
         let brdf = hit.material.albedo / PI;
         let next_ray = Ray(hit.position + hit.normal * 0.0001, generate_cosine_vector(hit.normal));
@@ -97,12 +104,15 @@ fn material_hit_result(hit: Hit, ray: Ray) -> MaterialHitResult {
         let cos_theta = dot(-ray.dir, hit.normal);
         let sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
+        let previous_ior = top_of_stack_or(stack, IOR_AIR);
+        let current_ior = hit.material.ior;
+
         var ior: f32;
 
         if hit.front_face {
-            ior = IOR_AIR / hit.material.ior;
+            ior = previous_ior / current_ior;
         } else {
-            ior = hit.material.ior / IOR_AIR;
+            ior = current_ior / previous_ior;
         }
 
         let cannot_refract = ior * sin_theta > 1.0;
@@ -119,6 +129,12 @@ fn material_hit_result(hit: Hit, ray: Ray) -> MaterialHitResult {
 
             pos += hit.normal * 0.0001;
         } else {
+            if hit.front_face {
+                push_to_stack(stack, current_ior);
+            } else {
+                pop_from_stack(stack);
+            }
+
             // dir = generate_cosine_vector(hit.normal);
             // pos += hit.normal * 0.0001;
 
@@ -139,14 +155,20 @@ fn material_hit_result(hit: Hit, ray: Ray) -> MaterialHitResult {
 
 fn pathtrace(ray: Ray) -> vec3<f32> {
     var incoming_normal = vec3(10.0);
-    var current_ior = IOR_AIR;
+    var ior_stack = new_stack();
 
     var throughput = vec3(1.0);
     var radiance = vec3(0.0);
 
     var current_ray = ray;
 
-    for (var i = 0; i < 6; i++) {
+    var bounces = 5;
+    
+    if camera.should_accumulate == 1 {
+        bounces = 50;
+    }
+
+    for (var i = 0; i < bounces; i++) {
         var hit: Hit;
         var weight: f32 = 1.0 / TAU;
 
@@ -161,7 +183,7 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
         incoming_normal = hit.normal;
         radiance += throughput * hit.material.emission;
 
-        let material_hit_result = material_hit_result(hit, current_ray);
+        let material_hit_result = material_hit_result(hit, current_ray, &ior_stack);
         throughput *= material_hit_result.brdf;
 
         current_ray = material_hit_result.next_ray;

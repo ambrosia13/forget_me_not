@@ -20,7 +20,7 @@ impl WgslShaderSource {
         let parent_path = std::env::current_dir()?;
         let path = parent_path.join(relative_path);
 
-        let source = std::fs::read_to_string(&path).unwrap();
+        let source = std::fs::read_to_string(&path)?;
         let source = util::preprocess::resolve_includes(source, &parent_path)?;
 
         let name = path.file_name().unwrap().to_str().unwrap().to_owned(); // ew

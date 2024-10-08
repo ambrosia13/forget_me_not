@@ -76,9 +76,11 @@ fn ray_sphere_intersect(ray: Ray, sphere: Sphere) -> Hit {
         let determinant_sqrt = sqrt(determinant);
         var t = (-b - determinant_sqrt) / a;
 
-        if t < 0.0 {
-            t = (-b + determinant_sqrt) / a;
-        }
+        t = mix(t, (-b + determinant_sqrt) / a, f32(t < 0.0));
+
+        // if t < 0.0 {
+        //     t = (-b + determinant_sqrt) / a;
+        // }
 
         if t >= 0.0 {
             let point = ray.pos + ray.dir * t;

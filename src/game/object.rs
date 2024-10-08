@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::*;
 use glam::Vec3;
+use rand::Rng;
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -7,7 +8,12 @@ use crate::{
     util::buffer::{AsStd140Bytes, Std140Bytes},
 };
 
-use super::material::Material;
+use super::{
+    camera::Camera,
+    material::{Material, MaterialType},
+};
+
+const PAD_THICKNESS: f32 = 0.00025;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Sphere {
@@ -31,6 +37,13 @@ impl Sphere {
 
     pub fn radius(&self) -> f32 {
         self.radius
+    }
+
+    pub fn pad(self) -> Self {
+        Self {
+            radius: self.radius - PAD_THICKNESS,
+            ..self
+        }
     }
 }
 
@@ -88,6 +101,22 @@ impl Aabb {
     pub fn new(min: Vec3, max: Vec3, material: Material) -> Self {
         Self { min, max, material }
     }
+
+    pub fn min(&self) -> Vec3 {
+        self.min
+    }
+
+    pub fn max(&self) -> Vec3 {
+        self.max
+    }
+
+    pub fn pad(self) -> Self {
+        Self {
+            min: self.min + PAD_THICKNESS,
+            max: self.max - PAD_THICKNESS,
+            ..self
+        }
+    }
 }
 
 impl AsStd140Bytes for Aabb {
@@ -112,13 +141,78 @@ pub struct Objects {
 
 impl Objects {
     pub fn init(mut commands: Commands) {
-        let objects = Objects {
+        let mut objects = Objects {
             spheres: Vec::with_capacity(32),
             planes: Vec::with_capacity(32),
             aabbs: Vec::with_capacity(32),
         };
 
+        objects.random_scene();
+
         commands.insert_resource(objects)
+    }
+
+    pub fn random_scene(&mut self) {
+        self.spheres.clear();
+        self.planes.clear();
+        self.aabbs.clear();
+
+        self.planes.push(Plane::new(
+            Vec3::Y,
+            Vec3::ZERO,
+            Material {
+                ty: MaterialType::Lambertian,
+                albedo: Vec3::ONE,
+                emission: Vec3::ZERO,
+                roughness: 0.0,
+                ior: 0.0,
+            },
+        ));
+
+        let region_size = 5;
+        let regions_radius = 2;
+
+        for x in -regions_radius..=regions_radius {
+            for z in -regions_radius..=regions_radius {
+                let x = (x * region_size) as f32;
+                let z = (z * region_size) as f32;
+
+                let max_offset = region_size as f32 / 2.0 * 0.8;
+                let min_radius = region_size as f32 / 2.0 * 0.2;
+
+                let offset = rand::thread_rng().gen_range(-max_offset..=max_offset);
+
+                let rand_radius = || {
+                    rand::thread_rng()
+                        .gen_range(min_radius..=(max_offset - offset.abs() + min_radius))
+                        .sqrt()
+                };
+
+                match rand::thread_rng().gen_range(0..2) {
+                    0 => {
+                        let radius = rand_radius();
+
+                        self.push_sphere(Sphere::new(
+                            Vec3::new(x + offset, radius, z + offset),
+                            radius,
+                            Material::random(),
+                        ))
+                    }
+                    1 => {
+                        let radius_x = rand_radius();
+                        let radius_y = rand_radius();
+                        let radius_z = rand_radius();
+
+                        self.push_aabb(Aabb::new(
+                            Vec3::new(x + offset - radius_x, 0.0, z + offset - radius_z),
+                            Vec3::new(x + offset + radius_x, 2.0 * radius_y, z + offset + radius_z),
+                            Material::random(),
+                        ))
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
     }
 
     pub fn push_sphere(&mut self, sphere: Sphere) {
@@ -131,6 +225,45 @@ impl Objects {
 
     pub fn push_aabb(&mut self, aabb: Aabb) {
         self.aabbs.insert(0, aabb);
+    }
+
+    pub fn inside_sphere(&self, pos: Vec3) -> Option<Sphere> {
+        let mut inside_sphere: Option<Sphere> = None;
+
+        for &sphere in &self.spheres {
+            if pos.distance(sphere.center()) < sphere.radius() {
+                inside_sphere = match inside_sphere {
+                    // select the smallest sphere
+                    Some(sph) if sph.radius() < sphere.radius() => Some(sph),
+                    Some(_) => Some(sphere),
+                    None => None,
+                };
+            }
+        }
+
+        inside_sphere
+    }
+
+    pub fn inside_aabb(&self, pos: Vec3) -> Option<Aabb> {
+        fn radius(aabb: Aabb) -> f32 {
+            (aabb.max() - aabb.min()).length()
+        }
+
+        let mut inside_aabb: Option<Aabb> = None;
+
+        for &aabb in &self.aabbs {
+            if pos.cmpgt(aabb.min()).all() && pos.cmplt(aabb.max()).all() {
+                inside_aabb = match inside_aabb {
+                    Some(previous_aabb) if radius(previous_aabb) < radius(aabb) => {
+                        Some(previous_aabb)
+                    }
+                    Some(_) => Some(aabb),
+                    None => None,
+                };
+            }
+        }
+
+        inside_aabb
     }
 }
 
@@ -157,19 +290,19 @@ impl ObjectsUniform {
         }
     }
 
-    pub fn from_objects(objects: &Objects) -> Self {
+    pub fn from_objects(objects: &Objects, camera: &Camera) -> Self {
         let mut spheres = [Sphere::default(); 32];
         let mut planes = [Plane::default(); 32];
         let mut aabbs = [Aabb::default(); 32];
 
         for (i, &sphere) in objects.spheres.iter().enumerate().take(32) {
-            spheres[i] = sphere;
+            spheres[i] = sphere.pad();
         }
         for (i, &plane) in objects.planes.iter().enumerate().take(32) {
             planes[i] = plane;
         }
         for (i, &aabb) in objects.aabbs.iter().enumerate().take(32) {
-            aabbs[i] = aabb;
+            aabbs[i] = aabb.pad();
         }
 
         Self {
@@ -186,8 +319,12 @@ impl ObjectsUniform {
         commands.insert_resource(ObjectsUniform::new());
     }
 
-    pub fn update(mut objects_uniform: ResMut<ObjectsUniform>, objects: Res<Objects>) {
-        *objects_uniform = ObjectsUniform::from_objects(&objects);
+    pub fn update(
+        mut objects_uniform: ResMut<ObjectsUniform>,
+        objects: Res<Objects>,
+        camera: Res<Camera>,
+    ) {
+        *objects_uniform = ObjectsUniform::from_objects(&objects, &camera);
     }
 }
 

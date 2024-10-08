@@ -1,4 +1,7 @@
+use std::num::NonZero;
+
 use crate::engine::render_state_ext::RenderStateExt;
+use crate::engine::WgpuResourceRegistry;
 use crate::game::camera::CameraBuffer;
 use crate::game::object::ObjectsBuffer;
 use crate::game::vertex;
@@ -69,6 +72,7 @@ impl RaytraceRenderContext {
 
     pub fn new(
         render_state: &RenderState,
+        resource_registry: &mut WgpuResourceRegistry,
         fullscreen_quad: &FullscreenQuad,
         camera_buffer: &CameraBuffer,
         objects_buffer: &ObjectsBuffer,
@@ -173,6 +177,15 @@ impl RaytraceRenderContext {
                     }],
                 });
 
+        let cubemap_texture = resource_registry
+            .get_or_create_texture(render_state, "assets/textures/cubemaps/forest")
+            .unwrap();
+
+        let cubemap_view = cubemap_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            ..Default::default()
+        });
+
         let texture_bind_group_layout =
             render_state
                 .device
@@ -195,6 +208,22 @@ impl RaytraceRenderContext {
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::Cube,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
                     ],
                 });
 
@@ -212,6 +241,14 @@ impl RaytraceRenderContext {
                         wgpu::BindGroupEntry {
                             binding: 1,
                             resource: wgpu::BindingResource::Sampler(&color_texture_copy_sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::TextureView(&cubemap_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: wgpu::BindingResource::Sampler(cubemap_texture.sampler()),
                         },
                     ],
                 });
@@ -284,11 +321,18 @@ impl RaytraceRenderContext {
     pub fn recreate(
         &mut self,
         render_state: &RenderState,
+        resource_registry: &mut WgpuResourceRegistry,
         fullscreen_quad: &FullscreenQuad,
         camera_buffer: &CameraBuffer,
         objects_buffer: &ObjectsBuffer,
     ) {
-        *self = Self::new(render_state, fullscreen_quad, camera_buffer, objects_buffer);
+        *self = Self::new(
+            render_state,
+            resource_registry,
+            fullscreen_quad,
+            camera_buffer,
+            objects_buffer,
+        );
     }
 
     pub fn draw(&self, fullscreen_quad: &FullscreenQuad, encoder: &mut wgpu::CommandEncoder) {
@@ -345,12 +389,14 @@ impl RaytraceRenderContext {
     pub fn init(
         mut commands: Commands,
         render_state: Res<RenderState>,
+        mut resource_registry: ResMut<WgpuResourceRegistry>,
         fullscreen_quad: Res<FullscreenQuad>,
         camera_buffer: Res<CameraBuffer>,
         objects_buffer: Res<ObjectsBuffer>,
     ) {
         let raytrace_render_context = RaytraceRenderContext::new(
             &render_state,
+            resource_registry.as_mut(),
             &fullscreen_quad,
             &camera_buffer,
             &objects_buffer,
@@ -362,6 +408,7 @@ impl RaytraceRenderContext {
     #[allow(clippy::too_many_arguments)]
     pub fn update(
         render_state: Res<RenderState>,
+        mut resource_registry: ResMut<WgpuResourceRegistry>,
         mut raytrace_render_context: ResMut<RaytraceRenderContext>,
         fullscreen_quad: Res<FullscreenQuad>,
         camera_buffer: Res<CameraBuffer>,
@@ -373,6 +420,7 @@ impl RaytraceRenderContext {
         for _ in resize_events.read() {
             raytrace_render_context.recreate(
                 &render_state,
+                &mut resource_registry,
                 &fullscreen_quad,
                 &camera_buffer,
                 &objects_buffer,
@@ -382,6 +430,7 @@ impl RaytraceRenderContext {
         for _ in reload_events.read() {
             raytrace_render_context.recreate(
                 &render_state,
+                &mut resource_registry,
                 &fullscreen_quad,
                 &camera_buffer,
                 &objects_buffer,

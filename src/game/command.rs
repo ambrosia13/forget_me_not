@@ -88,6 +88,8 @@ pub enum GameCommand {
     Plane(Plane),
     Aabb(Aabb),
     DeleteLast(GeometryType),
+    Clear,
+    RandomScene,
     LookAtSphere,
     LookAt(Vec3),
     ReloadShaders,
@@ -134,6 +136,8 @@ impl GameCommand {
 
                 GameCommand::DeleteLast(ty)
             }
+            "clear" => GameCommand::Clear,
+            "randomScene" => GameCommand::RandomScene,
             "lookAtSphere" => GameCommand::LookAtSphere,
             "lookAt" => {
                 let x = args.next_f32()?;
@@ -156,11 +160,7 @@ impl GameCommand {
                     args.next_f32_gamma_corrected()?,
                     args.next_f32_gamma_corrected()?,
                 );
-                let emission = Vec3::new(
-                    args.next_f32_gamma_corrected()?,
-                    args.next_f32_gamma_corrected()?,
-                    args.next_f32_gamma_corrected()?,
-                );
+                let emission = Vec3::new(args.next_f32()?, args.next_f32()?, args.next_f32()?);
                 let roughness = args.next_f32()?;
                 let ior = args.next_f32()?;
 
@@ -261,6 +261,12 @@ pub fn receive_game_commands(
                     }
                 }
             },
+            GameCommand::Clear => {
+                objects.spheres.clear();
+                objects.planes.clear();
+                objects.aabbs.clear();
+            }
+            GameCommand::RandomScene => objects.random_scene(),
             GameCommand::LookAtSphere => camera.look_at(objects.spheres[0].center()),
             GameCommand::LookAt(pos) => camera.look_at(pos),
             GameCommand::ReloadShaders => {

@@ -2,7 +2,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
 
 use crate::game::{camera, command, event, input, render};
-use crate::render_state;
+use crate::{engine, render_state};
 
 use super::object;
 
@@ -109,6 +109,7 @@ pub fn create_render_init_schedule() -> Schedule {
 
     schedule.add_systems(
         (
+            engine::WgpuResourceRegistry::init,
             camera::CameraUniform::init,
             camera::CameraBuffer::init,
             object::ObjectsUniform::init,
