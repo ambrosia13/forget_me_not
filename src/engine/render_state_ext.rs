@@ -3,14 +3,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use image::{EncodableLayout, ImageBuffer, Rgba};
+use image::EncodableLayout;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::render_state::RenderState;
+use crate::{render_state::RenderState, util};
 
 use super::{
     shader::{WgslShader, WgslShaderSource},
-    texture::{WgpuTexture, WgpuTextureLoadError},
+    texture::{HdrImageBuffer, WgpuTexture, WgpuTextureLoadError},
 };
 
 pub trait RenderStateExt {
@@ -22,12 +22,12 @@ pub trait RenderStateExt {
     ) -> Result<WgpuTexture, WgpuTextureLoadError>;
 }
 
-fn read_cubemap_images(paths: &[PathBuf]) -> Vec<ImageBuffer<Rgba<f32>, Vec<f32>>> {
+fn read_cubemap_images(paths: &[PathBuf]) -> Result<Vec<HdrImageBuffer>, image::ImageError> {
     (0..6)
         .into_par_iter()
         .map(|i| {
             log::info!("Reading face {} of cube map", i);
-            image::open(&paths[i]).unwrap().to_rgba32f() // todo: propagate this error?
+            image::open(&paths[i]).map(|i| i.to_rgba32f())
         })
         .collect()
 }
@@ -55,16 +55,8 @@ impl RenderStateExt for RenderState {
         let parent_path = std::env::current_dir()?;
         let path = parent_path.join(&relative_path);
 
-        let name = path.file_name().unwrap().to_str().unwrap().to_owned();
+        let name = util::name_from_path(&path);
 
-        // let images = [
-        //     image::open(path.join("px.hdr")).unwrap().to_rgba32f(),
-        //     image::open(path.join("nx.hdr")).unwrap().to_rgba32f(),
-        //     image::open(path.join("py.hdr")).unwrap().to_rgba32f(),
-        //     image::open(path.join("ny.hdr")).unwrap().to_rgba32f(),
-        //     image::open(path.join("pz.hdr")).unwrap().to_rgba32f(),
-        //     image::open(path.join("nz.hdr")).unwrap().to_rgba32f(),
-        // ];
         let faces = ["px.hdr", "nx.hdr", "py.hdr", "ny.hdr", "pz.hdr", "nz.hdr"];
         let paths = faces.map(|f| path.join(f));
 
@@ -80,7 +72,7 @@ impl RenderStateExt for RenderState {
         //     image::open(&paths[i]).unwrap().to_rgba32f()
         // });
 
-        let images = read_cubemap_images(&paths);
+        let images = read_cubemap_images(&paths)?;
 
         let format = wgpu::TextureFormat::Rgba32Float;
         let bytes_per_pixel = format.block_copy_size(None).unwrap();
