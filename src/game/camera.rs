@@ -17,11 +17,6 @@ pub struct Camera {
     aspect: f32,
     pub near: f32,
     pub far: f32,
-
-    view_width: u32,
-    view_height: u32,
-
-    previous_view_direction: Vec3,
 }
 
 impl Camera {
@@ -40,8 +35,6 @@ impl Camera {
         window_size: PhysicalSize<u32>,
         near: f32,
         far: f32,
-        view_width: u32,
-        view_height: u32,
     ) -> Self {
         Self {
             position,
@@ -52,9 +45,6 @@ impl Camera {
             aspect: window_size.width as f32 / window_size.height as f32,
             near,
             far,
-            view_width,
-            view_height,
-            previous_view_direction: Vec3::ZERO,
         }
     }
 
@@ -139,8 +129,6 @@ impl Camera {
             render_state.size,
             0.01,
             100.0,
-            render_state.size.width,
-            render_state.size.height,
         );
 
         camera.look_at(Vec3::new(0.0, 0.0, -1.0));
@@ -155,8 +143,6 @@ impl Camera {
         keyboard_input: Res<KeyboardInput>,
         last_frame_instant: Res<LastFrameInstant>,
     ) {
-        camera.previous_view_direction = camera.forward();
-
         for event in resize_events.read() {
             camera.reconfigure_aspect(event.0);
         }
