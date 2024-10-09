@@ -14,10 +14,9 @@ var downsample_texture: texture_2d<f32>;
 var downsample_sampler: sampler;
 
 @group(0) @binding(4)
-var<uniform> lod_info: LodInfo;
-
-@group(0) @binding(5)
 var<uniform> screen: ScreenUniforms;
+
+var<push_constant> lod_info: LodInfo;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {

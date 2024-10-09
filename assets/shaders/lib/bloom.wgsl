@@ -1,6 +1,6 @@
 struct LodInfo {
     current_lod: u32,
-    max_lods: u32,
+    max_lod: u32,
 }
 
 // Bloom sampling filters taken from FREX
@@ -52,4 +52,8 @@ fn sample_tent(tex: texture_2d<f32>, samp: sampler, uv: vec2<f32>, resolution: v
     sum += textureSample(tex, samp, uv + d.xy);
 
     return sum * (1.0 / 16.0);
+}
+
+fn sample_weight(current_lod: u32, max_lod: u32) -> f32 {
+    return 1.0 / f32(max_lod);
 }

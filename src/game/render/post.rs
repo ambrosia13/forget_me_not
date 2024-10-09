@@ -176,7 +176,7 @@ impl RaytraceRenderContext {
                 });
 
         let cubemap_texture = resource_registry
-            .get_or_create_texture(render_state, "assets/textures/cubemaps/forest")
+            .get_or_create_texture(render_state, "assets/textures/cubemaps/sunset")
             .unwrap();
 
         let cubemap_view = cubemap_texture.create_view(&wgpu::TextureViewDescriptor {
@@ -478,6 +478,11 @@ impl BloomRenderContext {
         // use as many mip levels as we can
         let mip_levels = max_possible_mip_levels;
 
+        let push_constant_range = wgpu::PushConstantRange {
+            stages: wgpu::ShaderStages::FRAGMENT,
+            range: 0..8, // first 4 bytes current_lod, next 4 bytes max_lod
+        };
+
         let input_texture_view = input_texture.create_view(&wgpu::TextureViewDescriptor {
             format: Some(input_texture.format()),
             ..Default::default()
@@ -495,21 +500,6 @@ impl BloomRenderContext {
                 mipmap_filter: wgpu::FilterMode::Linear,
                 ..Default::default()
             });
-
-        let mut lod_buffers = Vec::with_capacity(mip_levels as usize);
-
-        for target_mip in 0..mip_levels as usize {
-            lod_buffers.push(render_state.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some(&format!(
-                        "Bloom Downsample Lod Buffer (target_mip = {})",
-                        target_mip
-                    )),
-                    contents: bytemuck::cast_slice(&[target_mip as u32, mip_levels]),
-                    usage: wgpu::BufferUsages::UNIFORM,
-                },
-            ));
-        }
 
         let downsample_texture = render_state
             .device
@@ -593,17 +583,6 @@ impl BloomRenderContext {
                             },
                             count: None,
                         },
-                        // Lod uniform
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 3,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
                     ],
                 });
 
@@ -626,11 +605,6 @@ impl BloomRenderContext {
                     wgpu::BindGroupEntry {
                         binding: 2,
                         resource: camera_buffer.buffer.as_entire_binding(),
-                    },
-                    // lod uniform
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: lod_buffers[0].as_entire_binding(),
                     },
                 ],
             },
@@ -660,11 +634,6 @@ impl BloomRenderContext {
                             binding: 2,
                             resource: camera_buffer.buffer.as_entire_binding(),
                         },
-                        // lod uniform
-                        wgpu::BindGroupEntry {
-                            binding: 3,
-                            resource: lod_buffers[target_mip].as_entire_binding(),
-                        },
                     ],
                 },
             ));
@@ -678,7 +647,7 @@ impl BloomRenderContext {
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Bloom Downsample Pass Render Pipeline Layout"),
                     bind_group_layouts: &[&downsample_texture_bind_group_layout],
-                    push_constant_ranges: &[],
+                    push_constant_ranges: &[push_constant_range.clone()],
                 });
 
         let downsample_pipeline =
@@ -791,16 +760,6 @@ impl BloomRenderContext {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
                 ],
             });
 
@@ -822,10 +781,6 @@ impl BloomRenderContext {
                             binding: 1,
                             resource: wgpu::BindingResource::Sampler(&downsample_texture_sampler),
                         },
-                        wgpu::BindGroupEntry {
-                            binding: 2,
-                            resource: lod_buffers.last().unwrap().as_entire_binding(),
-                        },
                     ],
                 });
 
@@ -838,7 +793,7 @@ impl BloomRenderContext {
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("First Bloom Upsample Pass Pipeline Layout"),
                     bind_group_layouts: &[&first_upsample_texture_bind_group_layout],
-                    push_constant_ranges: &[],
+                    push_constant_ranges: &[push_constant_range.clone()],
                 });
 
         let first_upsample_pipeline =
@@ -931,16 +886,6 @@ impl BloomRenderContext {
                             },
                             count: None,
                         },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 5,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
                     ],
                 });
 
@@ -952,7 +897,7 @@ impl BloomRenderContext {
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Bloom Upsample Pass Pipeline Layout"),
                     bind_group_layouts: &[&upsample_texture_bind_group_layout],
-                    push_constant_ranges: &[],
+                    push_constant_ranges: &[push_constant_range.clone()],
                 });
 
         let upsample_pipeline =
@@ -1030,10 +975,6 @@ impl BloomRenderContext {
                         },
                         wgpu::BindGroupEntry {
                             binding: 4,
-                            resource: lod_buffers[target_mip].as_entire_binding(),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 5,
                             resource: camera_buffer.buffer.as_entire_binding(),
                         },
                     ],
@@ -1099,16 +1040,6 @@ impl BloomRenderContext {
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 4,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
                     ],
                 });
 
@@ -1140,10 +1071,6 @@ impl BloomRenderContext {
                             binding: 3,
                             resource: wgpu::BindingResource::Sampler(&upsample_texture_sampler),
                         },
-                        wgpu::BindGroupEntry {
-                            binding: 4,
-                            resource: lod_buffers[0].as_entire_binding(),
-                        },
                     ],
                 });
 
@@ -1155,7 +1082,7 @@ impl BloomRenderContext {
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Bloom Merge Pass Pipeline Layout"),
                     bind_group_layouts: &[&merge_texture_bind_group_layout],
-                    push_constant_ranges: &[],
+                    push_constant_ranges: &[push_constant_range.clone()],
                 });
 
         let merge_pipeline =
@@ -1246,6 +1173,12 @@ impl BloomRenderContext {
             render_pass.set_pipeline(&self.downsample_pipeline);
             render_pass.set_bind_group(0, &self.downsample_texture_bind_groups[target_mip], &[]);
 
+            render_pass.set_push_constants(
+                wgpu::ShaderStages::FRAGMENT,
+                0,
+                bytemuck::cast_slice(&[target_mip as u32, self.mip_levels]),
+            );
+
             render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
             render_pass.set_index_buffer(
                 fullscreen_quad.index_buffer.slice(..),
@@ -1279,6 +1212,12 @@ impl BloomRenderContext {
         render_pass.set_pipeline(&self.first_upsample_pipeline);
         render_pass.set_bind_group(0, &self.first_upsample_texture_bind_group, &[]);
 
+        render_pass.set_push_constants(
+            wgpu::ShaderStages::FRAGMENT,
+            0,
+            bytemuck::cast_slice(&[self.mip_levels - 1, self.mip_levels]),
+        );
+
         render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
         render_pass.set_index_buffer(
             fullscreen_quad.index_buffer.slice(..),
@@ -1310,6 +1249,12 @@ impl BloomRenderContext {
 
             render_pass.set_pipeline(&self.upsample_pipeline);
             render_pass.set_bind_group(0, &self.upsample_texture_bind_groups[target_mip], &[]);
+
+            render_pass.set_push_constants(
+                wgpu::ShaderStages::FRAGMENT,
+                0,
+                bytemuck::cast_slice(&[target_mip as u32, self.mip_levels]),
+            );
 
             render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
             render_pass.set_index_buffer(
@@ -1352,6 +1297,12 @@ impl BloomRenderContext {
 
         render_pass.set_pipeline(&self.merge_pipeline);
         render_pass.set_bind_group(0, &self.merge_texture_bind_group, &[]);
+
+        render_pass.set_push_constants(
+            wgpu::ShaderStages::FRAGMENT,
+            0,
+            bytemuck::cast_slice(&[0u32, self.mip_levels]),
+        );
 
         render_pass.set_vertex_buffer(0, fullscreen_quad.vertex_buffer.slice(..));
         render_pass.set_index_buffer(
