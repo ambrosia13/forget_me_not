@@ -1,3 +1,9 @@
+const PI: f32 = 3.1415926535897932384626433832795;
+const HALF_PI: f32 = 1.57079632679489661923; 
+const TAU: f32 = 6.2831853071795864769252867665590;
+
+const E: f32 = 2.718281828459045235360287471352;
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,

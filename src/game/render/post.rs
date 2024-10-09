@@ -465,6 +465,7 @@ pub struct BloomRenderContext {
 
 impl BloomRenderContext {
     pub const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg11b10Float;
+    pub const ADDRESS_MODE: wgpu::AddressMode = wgpu::AddressMode::ClampToBorder;
 
     pub fn new(
         render_state: &RenderState,
@@ -492,9 +493,9 @@ impl BloomRenderContext {
             .device
             .create_sampler(&wgpu::SamplerDescriptor {
                 label: Some("Bloom Downsample Input Texture Sampler"),
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                address_mode_u: BloomRenderContext::ADDRESS_MODE,
+                address_mode_v: BloomRenderContext::ADDRESS_MODE,
+                address_mode_w: BloomRenderContext::ADDRESS_MODE,
                 mag_filter: wgpu::FilterMode::Linear,
                 min_filter: wgpu::FilterMode::Linear,
                 mipmap_filter: wgpu::FilterMode::Linear,
@@ -524,9 +525,9 @@ impl BloomRenderContext {
                 .device
                 .create_sampler(&wgpu::SamplerDescriptor {
                     label: Some("Bloom Downsample Texture Sampler"),
-                    address_mode_u: wgpu::AddressMode::ClampToEdge,
-                    address_mode_v: wgpu::AddressMode::ClampToEdge,
-                    address_mode_w: wgpu::AddressMode::ClampToEdge,
+                    address_mode_u: BloomRenderContext::ADDRESS_MODE,
+                    address_mode_v: BloomRenderContext::ADDRESS_MODE,
+                    address_mode_w: BloomRenderContext::ADDRESS_MODE,
                     mag_filter: wgpu::FilterMode::Linear,
                     min_filter: wgpu::FilterMode::Linear,
                     mipmap_filter: wgpu::FilterMode::Linear,
@@ -713,9 +714,9 @@ impl BloomRenderContext {
                 .device
                 .create_sampler(&wgpu::SamplerDescriptor {
                     label: Some("Bloom Upsample Texture Sampler"),
-                    address_mode_u: wgpu::AddressMode::ClampToEdge,
-                    address_mode_v: wgpu::AddressMode::ClampToEdge,
-                    address_mode_w: wgpu::AddressMode::ClampToEdge,
+                    address_mode_u: BloomRenderContext::ADDRESS_MODE,
+                    address_mode_v: BloomRenderContext::ADDRESS_MODE,
+                    address_mode_w: BloomRenderContext::ADDRESS_MODE,
                     mag_filter: wgpu::FilterMode::Linear,
                     min_filter: wgpu::FilterMode::Linear,
                     mipmap_filter: wgpu::FilterMode::Linear,

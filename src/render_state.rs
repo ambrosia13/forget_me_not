@@ -44,7 +44,9 @@ impl RenderState {
                     required_features: wgpu::Features::FLOAT32_FILTERABLE
                         | wgpu::Features::RG11B10UFLOAT_RENDERABLE
                         | wgpu::Features::TEXTURE_BINDING_ARRAY
-                        | wgpu::Features::PUSH_CONSTANTS,
+                        | wgpu::Features::PUSH_CONSTANTS
+                        | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER
+                        | wgpu::Features::ADDRESS_MODE_CLAMP_TO_ZERO,
                     required_limits: wgpu::Limits {
                         max_push_constant_size: 128,
                         ..Default::default()

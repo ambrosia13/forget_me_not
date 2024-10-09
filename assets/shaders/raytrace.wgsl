@@ -4,10 +4,6 @@
 #include assets/shaders/lib/rt/intersect.wgsl
 #include assets/shaders/lib/rt/stack.wgsl
 
-const PI: f32 = 3.1415926535897932384626433832795;
-const HALF_PI: f32 = 1.57079632679489661923; 
-const TAU: f32 = 6.2831853071795864769252867665590; 
-
 const MATERIAL_LAMBERTIAN: u32 = 0u;
 const MATERIAL_METAL: u32 = 1u;
 const MATERIAL_DIELECTRIC: u32 = 2u;

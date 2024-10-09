@@ -11,5 +11,6 @@ var<push_constant> lod_info: LodInfo;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(downsample_texture, downsample_sampler, in.uv);
+    let weight = sample_weight(lod_info.current_lod, lod_info.max_lod);
+    return textureSample(downsample_texture, downsample_sampler, in.uv) * weight;
 }

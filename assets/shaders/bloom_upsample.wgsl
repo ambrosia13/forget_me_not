@@ -27,7 +27,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         vec2(screen.view.width >> lod_info.current_lod, screen.view.height >> lod_info.current_lod)
     );
 
-    let current = textureSample(downsample_texture, downsample_sampler, in.uv);
+    let weight = sample_weight(lod_info.current_lod, lod_info.max_lod);
+    let current = textureSample(downsample_texture, downsample_sampler, in.uv) * weight;
 
     return prior + current;
 }
