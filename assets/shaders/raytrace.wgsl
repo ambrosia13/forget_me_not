@@ -8,6 +8,17 @@ const PI: f32 = 3.1415926535897932384626433832795;
 const HALF_PI: f32 = 1.57079632679489661923; 
 const TAU: f32 = 6.2831853071795864769252867665590; 
 
+const TAA_OFFSETS = array<vec2<f32>, 8>(
+    vec2( 0.125,-0.375),
+    vec2(-0.125, 0.375),
+    vec2( 0.625, 0.125),
+    vec2( 0.375,-0.625),
+    vec2(-0.625, 0.625),
+    vec2(-0.875,-0.125),
+    vec2( 0.375,-0.875),
+    vec2( 0.875, 0.875)
+);
+
 const MATERIAL_LAMBERTIAN: u32 = 0u;
 const MATERIAL_METAL: u32 = 1u;
 const MATERIAL_DIELECTRIC: u32 = 2u;
@@ -97,7 +108,7 @@ fn material_hit_result(hit: Hit, ray: Ray, stack: ptr<function, Stack>) -> Mater
         let reflect_dir = reflect(ray.dir, hit.normal);
         let next_ray = Ray(
             hit.position + hit.normal * 0.0001, 
-            mix(reflect_dir, generate_cosine_vector(hit.normal), hit.material.roughness)
+            mix(reflect_dir, generate_cosine_vector(reflect_dir), hit.material.roughness)
         );
 
         return MaterialHitResult(brdf, next_ray);
@@ -208,7 +219,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let view_dir = normalize(scene_space_pos);
 
     var ray: Ray;
-    ray.pos = screen.camera.position;
+    ray.pos = screen.camera.position + generate_unit_vector_static() * next_f32_static() * 0.0005;
     ray.dir = view_dir;
 
     var color = vec3(0.0);
