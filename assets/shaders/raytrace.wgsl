@@ -8,17 +8,6 @@ const PI: f32 = 3.1415926535897932384626433832795;
 const HALF_PI: f32 = 1.57079632679489661923; 
 const TAU: f32 = 6.2831853071795864769252867665590; 
 
-const TAA_OFFSETS = array<vec2<f32>, 8>(
-    vec2( 0.125,-0.375),
-    vec2(-0.125, 0.375),
-    vec2( 0.625, 0.125),
-    vec2( 0.375,-0.625),
-    vec2(-0.625, 0.625),
-    vec2(-0.875,-0.125),
-    vec2( 0.375,-0.875),
-    vec2( 0.875, 0.875)
-);
-
 const MATERIAL_LAMBERTIAN: u32 = 0u;
 const MATERIAL_METAL: u32 = 1u;
 const MATERIAL_DIELECTRIC: u32 = 2u;
@@ -212,14 +201,17 @@ fn pathtrace(ray: Ray) -> vec3<f32> {
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     init_rng(in.texcoord, screen.view.width, screen.view.height, screen.view.frame_count);
 
-    let screen_space_pos = vec3(in.texcoord, 1.0);
+    let scaled_taa_offset = get_taa_offset(screen.view.frame_count) / vec2(f32(screen.view.width), f32(screen.view.height));
+    let taa_offset_texcoord = in.texcoord + scaled_taa_offset;
+
+    let screen_space_pos = vec3(taa_offset_texcoord, 1.0);
     let world_space_pos = from_screen_space(screen_space_pos, screen.camera.inverse_view_projection_matrix);
     let scene_space_pos = world_space_pos - screen.camera.position;
 
     let view_dir = normalize(scene_space_pos);
 
     var ray: Ray;
-    ray.pos = screen.camera.position + generate_unit_vector_static() * next_f32_static() * 0.0005;
+    ray.pos = screen.camera.position;
     ray.dir = view_dir;
 
     var color = vec3(0.0);

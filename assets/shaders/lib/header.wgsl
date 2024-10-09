@@ -35,3 +35,18 @@ struct ScreenUniforms {
     camera: Camera,
     view: View,
 }
+
+fn get_taa_offset(frame: u32) -> vec2<f32> {
+    var taa_offsets = array<vec2<f32>, 8>(
+        vec2( 0.125,-0.375),
+        vec2(-0.125, 0.375),
+        vec2( 0.625, 0.125),
+        vec2( 0.375,-0.625),
+        vec2(-0.625, 0.625),
+        vec2(-0.875,-0.125),
+        vec2( 0.375,-0.875),
+        vec2( 0.875, 0.875)
+    );
+
+    return taa_offsets[frame % 8];
+}
